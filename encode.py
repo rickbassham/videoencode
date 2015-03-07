@@ -109,7 +109,7 @@ def encode(movie):
 
     valid_profiles = ['High', 'Main', 'Baseline', 'Constrained Baseline']
 
-    if video_stream['codec_name'] == 'h264' and video_stream['width'] <= 1280 and video_stream['level'] <= 41 and video_stream['profile'] in valid_profiles:
+    if subtitle_stream is None and video_stream['codec_name'] == 'h264' and video_stream['width'] <= 1280 and video_stream['level'] <= 41 and video_stream['profile'] in valid_profiles:
         command.extend([
             "-codec:v:{0}".format(video_stream_index), "copy",
         ])
@@ -145,10 +145,9 @@ def encode(movie):
 
     if subtitle_stream is not None:
         command.extend([
-            "-map", "0:s:{0}".format(subtitle_stream_index),
-            "-c:s:{0}".format(subtitle_stream_index), "mov_text",
-            "-metadata:s:s:{0}".format(subtitle_stream_index), "language=eng",
+            "-vf", 'subtitles=filename={0}:stream_index={1}'.format(input_file, subtitle_stream_index)
         ])
+
     elif use_srt_file:
         command.extend([
             "-map", "1:s:{0}".format(subtitle_stream_index),
@@ -194,7 +193,12 @@ def encode(movie):
         f.write(' '.join(command))
         f.write('\n')
 
-movies = json.load(open('movies.json'))
+if (len(sys.argv) > 1):
+    fp = sys.argv[1]
+else:
+    fp = 'movies.json'
+
+movies = json.load(open(fp))
 
 #print json.dumps(movies, indent=3)
 
