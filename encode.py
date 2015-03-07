@@ -130,6 +130,8 @@ def encode(movie):
                 "-af", "aresample=matrix_encoding=dplii",
             ])
 
+    # TODO: If the subtitle is forced, burn it in to the video.
+
     if subtitle_stream is not None:
         command.extend([
             "-map", "0:s:{0}".format(subtitle_stream_index),
