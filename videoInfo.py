@@ -8,7 +8,7 @@ import json
 
 combos = []
 
-search_path = '/media/Videos/Movies/'
+search_path = '/media/psf/storage/Videos/Movies/'
 avprobe_path = '/usr/bin/avprobe'
 
 def getStreams(path):

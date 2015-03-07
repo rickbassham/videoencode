@@ -11,8 +11,8 @@ import json
 avconv_path = '/usr/bin/avconv'
 MP4Box_path = '/usr/bin/MP4Box'
 
-search_path = '/media/Videos/Movies/'
-converted_path = '/media/ConvertedVideos/Movies/'
+search_path = '/media/psf/storage/Videos/Movies/'
+converted_path = '/media/psf/storage/ConvertedVideos/Movies/'
 
 
 def mkdir_p(path):
@@ -86,15 +86,26 @@ def encode(movie):
 
     mkdir_p(os.path.dirname(output_file))
 
+    use_srt_file = subtitle_stream is None and os.path.isfile(subtitle_file)
+
     command = [
         avconv_path,
         "-hide_banner",
+#        "-loglevel", "error",
         "-y",
         "-i", input_file,
+    ]
+
+    if use_srt_file:
+        command.extend([
+            "-i", subtitle_file,
+        ])
+
+    command.extend([
         "-map", "0:v:{0}".format(video_stream_index),
         "-map_metadata", "-1",
         "-strict", "experimental",
-    ]
+    ])
 
     valid_profiles = ['High', 'Main', 'Baseline', 'Constrained Baseline']
 
@@ -138,10 +149,9 @@ def encode(movie):
             "-c:s:{0}".format(subtitle_stream_index), "mov_text",
             "-metadata:s:s:{0}".format(subtitle_stream_index), "language=eng",
         ])
-    elif os.path.isfile(subtitle_file):
+    elif use_srt_file:
         command.extend([
-            "-i", subtitle_file,
-            "-map", "0:s:{0}".format(subtitle_stream_index),
+            "-map", "1:s:{0}".format(subtitle_stream_index),
             "-c:s:{0}".format(subtitle_stream_index), "mov_text",
             "-metadata:s:s:{0}".format(subtitle_stream_index), "language=eng",
         ])
