@@ -44,36 +44,44 @@ def mkdir_p(path):
             pass
         else: raise
 
-i = 0
+def addVideo(path):
+    global combos
+    root, name = os.path.split(path)
 
-for root, dirs, files in os.walk(search_path):
-    for name in files:
-        x, extn = os.path.splitext(name)
-        extn = extn.lower()
-        if name.endswith('mkv') or name.endswith('avi') or name.endswith('mp4') or name.endswith('m4v'):
-            video_codec = None
-            audio_codec = None
-            audio_channels = None
-            subtitle_codec = None
+    x, extn = os.path.splitext(name)
+    extn = extn.lower()
+    if name.endswith('mkv') or name.endswith('avi') or name.endswith('mp4') or name.endswith('m4v'):
+        video_codec = None
+        audio_codec = None
+        audio_channels = None
+        subtitle_codec = None
 
-            if output_file != '-':
-                print name
+        if output_file != '-':
+            print name
 
-            mi = getStreams(os.path.join(root, name))
+        mi = getStreams(os.path.join(root, name))
 
-            if mi is not None:
-                mi['name'] = x
-                mi['extn'] = extn
-                mi['folder'] = root
-                mi['encoded'] = False
-                mi['path'] = os.path.join(root, name)
+        if mi is not None:
+            mi['name'] = x
+            mi['extn'] = extn
+            mi['folder'] = root
+            mi['encoded'] = False
+            mi['path'] = os.path.join(root, name)
 
-                combos.append(mi)
+            combos.append(mi)
 
+if os.path.isfile(search_path):
+    addVideo(search_path)
+else:
+    i = 0
+
+    for root, dirs, files in os.walk(search_path):
+        for name in files:
+            if addVideo(os.path.join(root, name)):
                 i = i + 1
 
-#    if i > 0:
-#        break
+#        if i > 0:
+#            break
 
 #print json.dumps(combos, sort_keys=True, indent=4)
 
