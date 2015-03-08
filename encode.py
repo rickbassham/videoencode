@@ -119,6 +119,9 @@ def encode(movie):
         raw = open(subtitle_file).read()
         srt_file_encoding = chardet.detect(raw)['encoding']
 
+    copy_video = False
+    copy_audio = False
+
     command = [
         avconv_path,
         "-hide_banner",
@@ -149,6 +152,7 @@ def encode(movie):
         command.extend([
             "-codec:v:{0}".format(video_stream_index), "copy",
         ])
+        copy_video = True
     else:
         command.extend([
             "-codec:v:{0}".format(video_stream_index), "libx264",
@@ -164,6 +168,7 @@ def encode(movie):
             "-map", "0:a:{0}".format(audio_stream_index),
             "-codec:a:{0}".format(audio_stream_index), "copy",
         ])
+        copy_audio = True
     else:
         command.extend([
             "-map", "0:a:{0}".format(audio_stream_index),
@@ -176,6 +181,8 @@ def encode(movie):
                 "-ac", "2",
                 "-af", "aresample=matrix_encoding=dplii",
             ])
+        else:
+            copy_audio = True
 
     if subtitle_stream is not None:
         command.extend([
@@ -234,6 +241,9 @@ def encode(movie):
                 os.remove(temp_file)
             except:
                 pass
+
+            if copy_video and copy_audio and os.path.isfile(output_file):
+                os.remove(input_file)
 
         else:
             f = open('errors.log', 'a')
