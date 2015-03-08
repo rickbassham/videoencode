@@ -3,13 +3,27 @@
 import os
 import errno
 import subprocess
-
 import json
+import sys
+import argparse
 
+output = {}
 combos = []
 
-search_path = '/media/psf/storage/Videos/Movies/'
 avprobe_path = '/usr/bin/avprobe'
+
+parser = argparse.ArgumentParser(description='Dumps video information as json for use by encode script')
+
+parser.add_argument('video_dir', help="root folder to find video info for")
+parser.add_argument('output_file', help="path to the json file to output (default is stdout)", default='-')
+
+args = parser.parse_args()
+
+search_path = args.video_dir
+output_file = args.output_file
+
+output['search_path'] = search_path
+
 
 def getStreams(path):
     command = [avprobe_path, '-loglevel', 'quiet', '-show_streams', '-of', 'json', path]
@@ -42,7 +56,8 @@ for root, dirs, files in os.walk(search_path):
             audio_channels = None
             subtitle_codec = None
 
-            print name
+            if output_file != '-':
+                print name
 
             mi = getStreams(os.path.join(root, name))
 
@@ -51,6 +66,7 @@ for root, dirs, files in os.walk(search_path):
                 mi['extn'] = extn
                 mi['folder'] = root
                 mi['encoded'] = False
+                mi['path'] = os.path.join(root, name)
 
                 combos.append(mi)
 
@@ -61,4 +77,9 @@ for root, dirs, files in os.walk(search_path):
 
 #print json.dumps(combos, sort_keys=True, indent=4)
 
-json.dump(combos, open('movies.json', 'w'), sort_keys=True, indent=4)
+output['videos'] = combos
+
+if output_file != '-':
+    json.dump(output, open(output_file, 'w'), sort_keys=True, indent=4)
+else:
+    print json.dumps(output)
