@@ -61,4 +61,9 @@ for root, dirs, files in os.walk(search_path):
 
 #print json.dumps(combos, sort_keys=True, indent=4)
 
-json.dump(combos, open('movies.json', 'w'), sort_keys=True, indent=4)
+if (len(sys.argv) > 1):
+    fp = sys.argv[1]
+else:
+    fp = 'movies.json'
+
+json.dump(combos, open(fp, 'w'), sort_keys=True, indent=4)
