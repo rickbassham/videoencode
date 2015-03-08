@@ -152,7 +152,7 @@ def encode(movie):
     else:
         command.extend([
             "-codec:v:{0}".format(video_stream_index), "libx264",
-            "-threads", "2",
+#            "-threads", "2",
             "-crf", "22.0",
             "-profile:v", "high",
             "-filter:v:{0}".format(video_stream_index), "scale=w='min(1280\, iw):trunc(ow/a/2)*2'",
