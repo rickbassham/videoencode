@@ -206,7 +206,7 @@ def encode(movie):
         ])
 
         if os.path.isfile(output_file):
-            return
+            return False
 
         print ' '.join(command)
 
@@ -251,6 +251,8 @@ def encode(movie):
                 if copy_video and copy_audio and os.path.isfile(output_file):
                     os.remove(input_file)
 
+                return True
+
             else:
                 f = open('errors.log', 'a')
                 f.write(movie['name'])
@@ -264,7 +266,16 @@ def encode(movie):
             f.write(' '.join(command))
             f.write('\n')
 
+    return False
+
+
+good = True
 
 for video in to_process['videos']:
-    encode(video)
+    good = encode(video) and good
     #break
+
+if not good:
+    sys.exit(1)
+
+sys.exit(0)
