@@ -1,13 +1,23 @@
 #!/usr/bin/python
 
 import os
+import re
 import errno
+import signal
 import sys
-import subprocess
 import shutil
 import chardet
 import json
 import argparse
+
+should_stop = False
+
+def signal_handler(signal, frame):
+    global should_stop
+    print('You pressed Ctrl+C!')
+    should_stop = True
+
+signal.signal(signal.SIGINT, signal_handler)
 
 
 avconv_path = '/usr/bin/avconv'
@@ -35,6 +45,103 @@ else:
 search_path = to_process['search_path']
 
 
+from threading import Thread
+from Queue import Queue, Empty
+
+class NonBlockingStreamReader:
+
+    def __init__(self, stream):
+        '''
+        stream: the stream to read from.
+                Usually a process' stdout or stderr.
+        '''
+
+        self._s = stream
+        self._q = Queue()
+
+        def _populateQueue(stream, queue):
+            '''
+            Collect lines from 'stream' and put them in 'quque'.
+            '''
+
+            while True:
+                line = stream.read(80)
+                if line:
+                    queue.put(line)
+                else:
+                    raise UnexpectedEndOfStream
+
+        self._t = Thread(target=_populateQueue, args=(self._s, self._q))
+        self._t.daemon = True
+        self._t.start() #start collecting lines from the stream
+
+    def readline(self, timeout = None):
+        try:
+            return self._q.get(block = timeout is not None,
+                    timeout = timeout)
+        except Empty:
+            return None
+
+class UnexpectedEndOfStream(Exception): pass
+
+
+def quote_if_spaces(str):
+    if ' ' in str:
+        return '"' + str + '"'
+
+    return str
+
+def execute(command):
+    global should_stop
+    import subprocess
+
+    cmd = ' '.join(map(quote_if_spaces, command))
+
+    print cmd
+
+    f = open('commands.log', 'a')
+    f.write('\n')
+    f.write(cmd)
+    f.write('\n')
+    f.write('\n')
+    f.close()
+
+    p = subprocess.Popen(command, bufsize=1, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+
+    nbout = NonBlockingStreamReader(p.stdout)
+    nberr = NonBlockingStreamReader(p.stderr)
+
+    full_output = []
+    full_error = []
+
+    while p.poll() is None:
+
+        out = nbout.readline(0.1)
+        err = nberr.readline(0.1)
+
+        if out:
+            sys.stdout.write(out)
+            full_output.append(out)
+
+        if err:
+            sys.stdout.write(err)
+            full_error.append(err)
+
+        if should_stop:
+            p.kill()
+
+    if p.returncode != 0:
+        f = open('errors.log', 'a')
+        f.write(cmd)
+        f.write('\n')
+        f.write(''.join(full_output))
+        f.write(''.join(full_error))
+        f.write('\n')
+        f.write('\n')
+        return False
+
+    return True
+
 def mkdir_p(path):
     try:
         os.makedirs(path)
@@ -44,7 +151,8 @@ def mkdir_p(path):
         else: raise
 
 
-def encode(movie):
+def encode(movie, force_no_subs=False):
+    global should_stop
     # We want a video stream no wider than 1280 with Main 4.0 profile or lower
     # We want an audio stream of AAC at 160 with dolby pro logic (if coming from
     #    5.1) or stereo or mono
@@ -114,12 +222,17 @@ def encode(movie):
 
         mkdir_p(os.path.dirname(output_file))
 
-        use_srt_file = subtitle_stream is None and os.path.isfile(subtitle_file)
+        use_srt_file = subtitle_stream is None and os.path.isfile(subtitle_file) and not force_no_subs
         srt_file_encoding = None
 
         if use_srt_file:
             raw = open(subtitle_file).read()
             srt_file_encoding = chardet.detect(raw)['encoding']
+
+            if srt_file_encoding.startswith('UTF-8'):
+                srt_file_encoding = 'UTF-8'
+            elif srt_file_encoding.startswith('UTF-16'):
+                srt_file_encoding = 'UTF-16'
 
         copy_video = False
         copy_audio = False
@@ -192,13 +305,13 @@ def encode(movie):
 
         if subtitle_stream is not None:
             command.extend([
-                "-vf", 'subtitles=filename={0}:stream_index={1}'.format(input_file, subtitle_stream_index)
+                "-vf", "subtitles=filename='{0}':stream_index={1}".format(input_file, subtitle_stream_index)
             ])
         elif use_srt_file:
             command.extend([
                 "-map", "1:s:{0}".format(subtitle_stream_index),
                 "-c:s:{0}".format(subtitle_stream_index), "mov_text",
-                "-metadata:s:s:{0}".format(subtitle_stream_index), "language=eng",
+                '-metadata:s:s:{0}'.format(subtitle_stream_index), "language=eng",
             ])
 
         command.extend([
@@ -208,20 +321,9 @@ def encode(movie):
         if os.path.isfile(output_file):
             return False
 
-        print ' '.join(command)
+        success = execute(command)
 
-        f = open('commands.log', 'a')
-        f.write(movie['name'])
-        f.write('\n')
-        f.write(' '.join(command))
-        f.write('\n')
-        f.write('\n')
-        f.close()
-
-
-        ret = subprocess.call(command)
-
-        if ret == 0:
+        if success:
             command = [
                 MP4Box_path,
                 "-isma",
@@ -229,9 +331,9 @@ def encode(movie):
                 temp_file
             ]
 
-            ret = subprocess.call(command)
+            success = execute(command)
 
-            if ret == 0:
+            if success:
                 print 'Copying to final destination...'
                 try:
                     shutil.move(temp_file, output_file + '.tmp')
@@ -252,19 +354,8 @@ def encode(movie):
                     os.remove(input_file)
 
                 return True
-
-            else:
-                f = open('errors.log', 'a')
-                f.write(movie['name'])
-                f.write('\n')
-                f.write(' '.join(command))
-                f.write('\n')
-        else:
-            f = open('errors.log', 'a')
-            f.write(movie['name'])
-            f.write('\n')
-            f.write(' '.join(command))
-            f.write('\n')
+#        elif not should_stop:
+#            return encode(movie, force_no_subs=True)
 
     return False
 
@@ -272,7 +363,12 @@ def encode(movie):
 good = True
 
 for video in to_process['videos']:
+    if should_stop:
+        print 'Should Stop!!'
+        break
+
     good = encode(video) and good
+
     #break
 
 if not good:
