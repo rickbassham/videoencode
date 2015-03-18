@@ -6,6 +6,18 @@ import subprocess
 import json
 import sys
 import argparse
+import signal
+import sys
+
+should_stop = False
+
+def signal_handler(signal, frame):
+    global should_stop
+    print('You pressed Ctrl+C!')
+    should_stop = True
+
+signal.signal(signal.SIGINT, signal_handler)
+
 
 output = {}
 combos = []
@@ -77,6 +89,10 @@ else:
 
     for root, dirs, files in os.walk(search_path):
         for name in files:
+
+            if should_stop:
+                break
+
             if addVideo(os.path.join(root, name)):
                 i = i + 1
 
@@ -84,6 +100,9 @@ else:
 #            break
 
 #print json.dumps(combos, sort_keys=True, indent=4)
+
+if should_stop:
+    sys.exit(1)
 
 output['videos'] = combos
 
