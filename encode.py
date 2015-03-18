@@ -9,6 +9,7 @@ import shutil
 import chardet
 import json
 import argparse
+import datetime
 
 should_stop = False
 
@@ -75,10 +76,9 @@ class NonBlockingStreamReader:
         self._t.daemon = True
         self._t.start() #start collecting lines from the stream
 
-    def readline(self, timeout = None):
+    def readline(self, timeout=None):
         try:
-            return self._q.get(block = timeout is not None,
-                    timeout = timeout)
+            return self._q.get(block=timeout is not None, timeout=timeout)
         except Empty:
             return None
 
@@ -100,8 +100,10 @@ def execute(command):
     print cmd
 
     f = open('commands.log', 'a')
+    f.write(datetime.datetime.now().isoformat())
     f.write('\n')
-    f.write(cmd)
+    f.write(cmd.encode('UTF-8'))
+    f.write('\n')
     f.write('\n')
     f.write('\n')
     f.close()
@@ -132,7 +134,9 @@ def execute(command):
 
     if p.returncode != 0:
         f = open('errors.log', 'a')
-        f.write(cmd)
+        f.write(datetime.datetime.now().isoformat())
+        f.write('\n')
+        f.write(cmd.encode('UTF-8'))
         f.write('\n')
         f.write(''.join(full_output))
         f.write(''.join(full_error))
@@ -237,6 +241,8 @@ def encode(movie, force_no_subs=False):
         copy_video = False
         copy_audio = False
 
+        reasons = []
+
         command = [
             avconv_path,
             "-hide_banner",
@@ -245,15 +251,16 @@ def encode(movie, force_no_subs=False):
             "-i", input_file,
         ]
 
-        if srt_file_encoding is not None:
-            command.extend([
-                "-sub_charenc", srt_file_encoding,
-            ])
-
         if use_srt_file:
+            if srt_file_encoding is not None:
+                command.extend([
+                    "-sub_charenc", srt_file_encoding,
+                ])
+
             command.extend([
                 "-i", subtitle_file,
             ])
+            reasons.append('Add SRT file')
 
         command.extend([
             "-map", "0:v:{0}".format(video_stream_index),
@@ -262,7 +269,6 @@ def encode(movie, force_no_subs=False):
         ])
 
         valid_profiles = ['High', 'Main', 'Baseline', 'Constrained Baseline']
-
 
         if video_stream['width'] <= 1280:
             copy_video = True
@@ -285,6 +291,18 @@ def encode(movie, force_no_subs=False):
                 "-x264-params", "level=41:cabac=1:vbv-maxrate=10000:vbv-bufsize=20000",
             ])
 
+            if video_stream['codec_name'] != 'h264':
+                reasons.append('video codec {0}'.format(video_stream['codec_name']))
+
+            if video_stream['width'] > 1280:
+                reasons.append('video width {0}'.format(video_stream['width']))
+
+            if video_stream['level'] > 41:
+                reasons.append('video level {0}'.format(video_stream['level']))
+
+            if video_stream.get('profile', None) not in valid_profiles:
+                reasons.append('video profile {0}'.format(video_stream.get('profile', None)))
+
         if audio_stream['channels'] == 2 and audio_stream['codec_name'] == 'aac':
             command.extend([
                 "-map", "0:a:{0}".format(audio_stream_index),
@@ -303,10 +321,18 @@ def encode(movie, force_no_subs=False):
                     "-af", "aresample=matrix_encoding=dplii",
                 ])
 
+                reasons.append('audio channels {0}'.format(audio_stream['channels']))
+
+            if audio_stream['codec_name'] != 'aac':
+                reasons.append('audio codec {0}'.format(audio_stream['codec_name']))
+
         if subtitle_stream is not None:
             command.extend([
                 "-vf", "subtitles=filename='{0}':stream_index={1}".format(input_file, subtitle_stream_index)
             ])
+
+            reasons.append('forced subtitles')
+
         elif use_srt_file:
             command.extend([
                 "-map", "1:s:{0}".format(subtitle_stream_index),
@@ -320,6 +346,17 @@ def encode(movie, force_no_subs=False):
 
         if os.path.isfile(output_file):
             return False
+
+        f = open('reasons.log', 'a')
+        f.write(datetime.datetime.now().isoformat())
+        f.write(' ')
+        f.write(movie['name'].encode('UTF-8'))
+        f.write('\n')
+        f.write('; '.join(reasons))
+        f.write('\n')
+        f.write('\n')
+        f.write('\n')
+        f.close()
 
         success = execute(command)
 
