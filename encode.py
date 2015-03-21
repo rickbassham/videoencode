@@ -66,11 +66,11 @@ class NonBlockingStreamReader:
             '''
 
             while True:
-                line = stream.read(80)
+                line = stream.readline()
                 if line:
                     queue.put(line)
                 else:
-                    raise UnexpectedEndOfStream
+                    break
 
         self._t = Thread(target=_populateQueue, args=(self._s, self._q))
         self._t.daemon = True
@@ -108,7 +108,7 @@ def execute(command):
     f.write('\n')
     f.close()
 
-    p = subprocess.Popen(command, bufsize=1, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    p = subprocess.Popen(command, bufsize=1, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
 
     nbout = NonBlockingStreamReader(p.stdout)
     nberr = NonBlockingStreamReader(p.stderr)
@@ -116,21 +116,47 @@ def execute(command):
     full_output = []
     full_error = []
 
-    while p.poll() is None:
 
+    def readstdout():
         out = nbout.readline(0.1)
-        err = nberr.readline(0.1)
 
         if out:
             sys.stdout.write(out)
             full_output.append(out)
+            return True
+
+        return False
+
+
+    def readstderr():
+        err = nberr.readline(0.1)
 
         if err:
+            if err.startswith('frame='):
+                err = err.replace('\n', '\r')
+            else:
+                full_error.append(err)
+
             sys.stdout.write(err)
-            full_error.append(err)
+            return True
+
+        return False
+
+
+    while p.poll() is None:
+        readstdout()
+        readstderr()
 
         if should_stop:
             p.kill()
+
+
+    while readstdout():
+        pass
+
+    while readstderr():
+        pass
+
 
     if p.returncode != 0:
         f = open('errors.log', 'a')
