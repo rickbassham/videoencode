@@ -25,6 +25,16 @@ def signal_handler(signal, frame):
     should_stop = True
 signal.signal(signal.SIGINT, signal_handler)
 
+parser = argparse.ArgumentParser(description='Encodes videos queued at the specified server')
+
+parser.add_argument('server', help="ip address or hostname of the encode server")
+parser.add_argument('--exclude-video-change', help="", action="store_true")
+
+args = parser.parse_args()
+
+server = args.server
+exclude_video_change = args.exclude_video_change
+
 
 current_row_id = None
 last_update = datetime.datetime.now()
@@ -47,8 +57,14 @@ def getStreams(path):
     return json.loads(output)
 
 def getNext():
-    query = urllib.urlencode({ 'profile': profiles }, True)
-    req = urllib2.Request('http://localhost:8080/get_next', query)
+    global exclude_video_change
+    status = ['Pending']
+
+    if not exclude_video_change:
+        status.append('PendingFull')
+
+    query = urllib.urlencode({ 'profile': profiles, 'status': status }, True)
+    req = urllib2.Request('http://{0}:8080/get_next'.format(server), query)
     response = urllib2.urlopen(req)
     data = json.load(response)
 
@@ -66,7 +82,7 @@ def update_encode(rowid, status, percent_complete, framerate):
     }
 
     try:
-        req = urllib2.Request('http://localhost:8080/update_encode')
+        req = urllib2.Request('http://{0}:8080/update_encode'.format(server))
         req.add_header('Content-Type', 'application/json')
         response = urllib2.urlopen(req, json.dumps(obj))
     except:
@@ -422,6 +438,10 @@ def encode(movie):
         command.extend([
             temp_file,
         ])
+
+        if exclude_video_change and not copy_video:
+            update_encode(movie['RowID'], 'PendingFull', 0.0, 0.0)
+            return False
 
         f = open('reasons.log', 'a')
         f.write(datetime.datetime.now().isoformat())

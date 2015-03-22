@@ -78,8 +78,8 @@ class DataManager(Manager):
             ), obj)
         self.conn.commit()
 
-    def get_next(self, profiles):
-        encoding_list = self.encodingqueue_list(profiles, pending_only=True, limit=1)
+    def get_next(self, profiles, statuses):
+        encoding_list = self.encodingqueue_list(profiles, statuses, limit=1)
 
         if len(encoding_list) > 0:
             self.update_encode({
@@ -91,7 +91,7 @@ class DataManager(Manager):
 
         return encoding_list
 
-    def encodingqueue_list(self, profiles=[], pending_only=False, limit=None):
+    def encodingqueue_list(self, profiles=[], statuses=[], limit=None):
         query = (
             'SELECT'
             '   RowID,'
@@ -110,20 +110,32 @@ class DataManager(Manager):
 
         parameters = []
 
+        where_added = False
+
         if len(profiles) > 0:
             query = query + 'WHERE '
 
             if len(profiles) > 1:
                 query = query + ' Profile in (%s) ' % ','.join('?'*len(profiles))
-                parameters = list(profiles)
+                parameters.extend(profiles)
             else:
                 query = query + ' Profile = ?'
-                parameters = [profiles[0]]
+                parameters.extend([profiles[0]])
 
-            if pending_only:
-                query = query + " AND Status = 'Pending' "
-        elif pending_only:
-            query = query + "WHERE Status = 'Pending' "
+            where_added = True
+
+        if len(statuses) > 0:
+            if where_added:
+                query = query + ' AND '
+            else:
+                queyr = query + ' WHERE '
+
+            if len(statuses) > 1:
+                query = query + ' Status in (%s) ' % ','.join('?'*len(statuses))
+                parameters.extend(statuses)
+            else:
+                query = query + ' Status = ?'
+                parameters.extend([statuses[0]])
 
         query = query + ' ORDER BY Priority ASC, CreatedTimestamp ASC '
 
@@ -176,7 +188,7 @@ class DataManager(Manager):
             "FROM"
             "   encodingqueue "
             "WHERE"
-            "   Status not in ('Complete', 'Pending', 'Skipped', 'Error', 'FileNotFound', 'InvalidInputFile') "
+            "   Status not in ('Complete', 'Pending', 'PendingFull', 'Skipped', 'Error', 'FileNotFound', 'InvalidInputFile') "
         )
 
         print query
@@ -331,7 +343,7 @@ class DataManager(Manager):
         self.send(packet)
 
     def process_request_for_get_next(self, packet):
-        packet.payload['list'] = self.get_next(packet.payload['profiles'])
+        packet.payload['list'] = self.get_next(packet.payload['profiles'], packet.payload['statuses'])
         packet.return_to_sender()
         self.send(packet)
 
@@ -452,7 +464,7 @@ class RequestManager(Manager):
 
     @cherrypy.expose
     @cherrypy.tools.json_out()
-    def get_next(self, profile=None):
+    def get_next(self, profile=None, status=None):
         request_id = self.register_request()
 
         if profile is None:
@@ -461,7 +473,13 @@ class RequestManager(Manager):
         if isinstance(profile, basestring):
             profile = [profile]
 
-        self.send(Packet('get_next', 'DataManager', self.name, payload={ 'request_id': request_id, 'profiles': profile }))
+        if status is None:
+            status = []
+
+        if isinstance(status, basestring):
+            status = [status]
+
+        self.send(Packet('get_next', 'DataManager', self.name, payload={ 'request_id': request_id, 'profiles': profile, 'statuses': status }))
 
         response_packet = self.wait_for_response(request_id)
 
