@@ -123,7 +123,7 @@ class DataManager(Manager):
             if where_added:
                 query = query + ' AND '
             else:
-                queyr = query + ' WHERE '
+                query = query + ' WHERE '
 
             if len(statuses) > 1:
                 query = query + ' Status in (%s) ' % ','.join('?'*len(statuses))
