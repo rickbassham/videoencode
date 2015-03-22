@@ -6,6 +6,7 @@ from manager import Packet, Manager
 from threading import Event, Lock
 import json
 import time
+import datetime
 
 import signal
 import sys
@@ -158,6 +159,139 @@ class DataManager(Manager):
 
         return encoding_list
 
+    def get_active(self):
+        query = (
+            "SELECT"
+            "   RowID,"
+            "   CreatedTimestamp,"
+            "   LastUpdatedTimestamp,"
+            "   Profile,"
+            "   Priority,"
+            "   Status,"
+            "   ShouldStop,"
+            "   PercentComplete,"
+            "   FrameRate,"
+            "   InputPath,"
+            "   OutputPath "
+            "FROM"
+            "   encodingqueue "
+            "WHERE"
+            "   Status not in ('Complete', 'Pending', 'Skipped', 'Error', 'FileNotFound', 'InvalidInputFile') "
+        )
+
+        print query
+
+        self.cursor.execute(query)
+
+        rows = self.cursor.fetchall()
+
+        encoding_list = []
+
+        for row in rows:
+            encoding_list.append({
+                'RowID': row[0],
+                'CreatedTimestamp': row[1],
+                'LastUpdatedTimestamp': row[2],
+                'Profile': row[3],
+                'Priority': row[4],
+                'Status': row[5],
+                'ShouldStop': row[6],
+                'PercentComplete': row[7],
+                'FrameRate': row[8],
+                'InputPath': row[9],
+                'OutputPath': row[10],
+                })
+
+        return encoding_list
+
+    def reset_to_pending(self, statuses=[]):
+        query = (
+            "UPDATE encodingqueue"
+            "   Set Status = 'Pending' "
+            "WHERE "
+        )
+
+        parameters = []
+
+        if len(statuses) > 0:
+            if len(statuses) > 1:
+                query = query + ' Status in (%s) ' % ','.join('?'*len(statuses))
+                parameters = list(statuses)
+            else:
+                query = query + ' Status = ?'
+                parameters = [statuses[0]]
+        else:
+            raise Exception("No statuses specified.")
+
+        print query, parameters
+
+        if parameters is not None:
+            self.cursor.execute(query, parameters)
+        else:
+            self.cursor.execute(query)
+
+        count = self.cursor.rowcount
+
+        self.conn.commit()
+
+        return count
+
+    def get_all_with_status(self, statuses=[]):
+        query = (
+            "SELECT"
+            "   RowID,"
+            "   CreatedTimestamp,"
+            "   LastUpdatedTimestamp,"
+            "   Profile,"
+            "   Priority,"
+            "   Status,"
+            "   ShouldStop,"
+            "   PercentComplete,"
+            "   FrameRate,"
+            "   InputPath,"
+            "   OutputPath "
+            "FROM"
+            "   encodingqueue "
+            "WHERE"
+        )
+
+        parameters = []
+
+        if len(statuses) > 0:
+            if len(statuses) > 1:
+                query = query + ' Status in (%s) ' % ','.join('?'*len(statuses))
+                parameters = list(statuses)
+            else:
+                query = query + ' Status = ?'
+                parameters = [statuses[0]]
+        else:
+            raise Exception("No statuses specified.")
+
+        print query, parameters
+
+        self.cursor.execute(query, parameters)
+
+        rows = self.cursor.fetchall()
+
+        encoding_list = []
+
+        for row in rows:
+            encoding_list.append({
+                'RowID': row[0],
+                'CreatedTimestamp': row[1],
+                'LastUpdatedTimestamp': row[2],
+                'Profile': row[3],
+                'Priority': row[4],
+                'Status': row[5],
+                'ShouldStop': row[6],
+                'PercentComplete': row[7],
+                'FrameRate': row[8],
+                'InputPath': row[9],
+                'OutputPath': row[10],
+                })
+
+        return encoding_list
+
     def starting(self):
         self.conn = sqlite3.connect('encodingqueue.db')
         self.cursor = self.conn.cursor()
@@ -179,6 +313,12 @@ class DataManager(Manager):
             self.process_request_for_get_next(packet)
         elif packet.key == "update_encode":
             self.process_update_encode(packet)
+        elif packet.key == "reset_to_pending":
+            self.process_reset_to_pending(packet)
+        elif packet.key == "get_active":
+            self.process_request_for_active(packet)
+        elif packet.key == "get_all_with_status":
+            self.process_request_all_with_status(packet)
 
     def process_request_for_index(self, packet):
         packet.payload['list'] = self.encodingqueue_list()
@@ -210,11 +350,27 @@ class DataManager(Manager):
         packet.return_to_sender()
         self.send(packet)
 
+    def process_reset_to_pending(self, packet):
+        packet.payload['count'] = self.reset_to_pending(packet.payload['statuses'])
+        packet.return_to_sender()
+        self.send(packet)
+
+    def process_request_all_with_status(self, packet):
+        packet.payload['list'] = self.get_all_with_status(packet.payload['statuses'])
+        packet.return_to_sender()
+        self.send(packet)
+
+    def process_request_for_active(self, packet):
+        packet.payload['list'] = self.get_active()
+        packet.return_to_sender()
+        self.send(packet)
+
 
 import cherrypy
 class RequestManager(Manager):
     def __init__(self):
         Manager.__init__(self, 'RequestManager')
+        cherrypy.server.socket_host = '0.0.0.0'
         cherrypy.config.update({'engine.autoreload.on': False})
         cherrypy.tree.mount(self, '/')
         cherrypy.engine.start()
@@ -243,7 +399,7 @@ class RequestManager(Manager):
 
         return request_id
 
-    def wait_for_response(self, request_id):
+    def wait_for_response(self, request_id, timeout=10):
         req = None
 
         with self._requests_lock:
@@ -251,8 +407,11 @@ class RequestManager(Manager):
 
         e = req['event']
 
+        start = datetime.datetime.now()
+
         while not e.wait(0.1):
-            pass
+            if (datetime.datetime.now() - start).total_seconds() > timeout:
+                e.set()
 
         response_packet = None
 
@@ -343,6 +502,51 @@ class RequestManager(Manager):
         response_packet = self.wait_for_response(request_id)
 
         return json.dumps(response_packet.payload)
+
+    @cherrypy.expose
+    @cherrypy.tools.json_out()
+    def reset_to_pending(self, status=None):
+        request_id = self.register_request()
+
+        if status is None:
+            status = []
+
+        if isinstance(status, basestring):
+            status = [status]
+
+        self.send(Packet('reset_to_pending', 'DataManager', self.name, payload={ 'request_id': request_id, 'statuses': status }))
+
+        response_packet = self.wait_for_response(request_id)
+
+        return response_packet.payload
+
+    @cherrypy.expose
+    @cherrypy.tools.json_out()
+    def get_all_with_status(self, status=None):
+        request_id = self.register_request()
+
+        if status is None:
+            status = []
+
+        if isinstance(status, basestring):
+            status = [status]
+
+        self.send(Packet('get_all_with_status', 'DataManager', self.name, payload={ 'request_id': request_id, 'statuses': status }))
+
+        response_packet = self.wait_for_response(request_id)
+
+        return response_packet.payload
+
+    @cherrypy.expose
+    @cherrypy.tools.json_out()
+    def get_active(self):
+        request_id = self.register_request()
+
+        self.send(Packet('get_active', 'DataManager', self.name, payload={ 'request_id': request_id }))
+
+        response_packet = self.wait_for_response(request_id)
+
+        return response_packet.payload
 
 
 def Application():

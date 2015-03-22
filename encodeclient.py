@@ -65,11 +65,13 @@ def update_encode(rowid, status, percent_complete, framerate):
         'FrameRate': framerate
     }
 
-    req = urllib2.Request('http://localhost:8080/update_encode')
-    req.add_header('Content-Type', 'application/json')
-
-    response = urllib2.urlopen(req, json.dumps(obj))
-
+    try:
+        req = urllib2.Request('http://localhost:8080/update_encode')
+        req.add_header('Content-Type', 'application/json')
+        response = urllib2.urlopen(req, json.dumps(obj))
+    except:
+        print 'Unable to update encode.'
+        pass
 
 from threading import Thread
 from Queue import Queue, Empty
@@ -280,12 +282,20 @@ def encode(movie):
         for stream in movie['streams']:
             if stream['codec_type'] == 'subtitle':
                 if audio_stream is not None:
-                    audio_stream_lang = audio_stream['tags'].get('language', audio_stream['tags'].get('LANGUAGE', 'eng'))
+                    tags = audio_stream.get('tags', None)
+                    audio_stream_lang = None
+                    if tags is not None:
+                        audio_stream_lang = tags.get('language', tags.get('LANGUAGE', 'eng'))
+
+                    tags = stream.get('tags', None)
+                    lang = None
+                    if tags is not None:
+                        lang = tags.get('language', tags.get('LANGUAGE', 'eng'))
 
                     if audio_stream_lang == 'eng' and stream['disposition']['forced'] and stream['tags']['language'] == 'eng':
                         subtitle_stream = stream
                         subtitle_stream_index = subtitle_i
-                    elif audio_stream_lang != 'eng' and stream['tags']['language'] == 'eng':
+                    elif audio_stream_lang != 'eng' and lang == 'eng':
                         subtitle_stream = stream
                         subtitle_stream_index = subtitle_i
                 subtitle_i = subtitle_i + 1
@@ -449,7 +459,7 @@ def encode(movie):
             success = execute(command)
 
             if success:
-                print 'Copying to final destination...'
+                print 'Copying to final destination...', output_file
 
                 update_encode(movie['RowID'], 'Copying', 0.0, 0.0)
 
@@ -484,7 +494,7 @@ def encode(movie):
 
 
 for video in iter(getNext, None):
-    video = getNext()
+    print video['InputPath']
     video_info = getStreams(video['InputPath'])
 
     if video_info is not None:
