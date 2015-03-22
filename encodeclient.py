@@ -1,5 +1,12 @@
 #!/usr/bin/python
 
+import json
+import time
+import urllib
+import urllib2
+import subprocess
+import signal
+import sys
 import os
 import re
 import errno
@@ -19,29 +26,49 @@ def signal_handler(signal, frame):
 signal.signal(signal.SIGINT, signal_handler)
 
 
+current_row_id = None
+last_update = datetime.datetime.now()
+
+avprobe_path = '/usr/bin/avprobe'
 avconv_path = '/usr/bin/avconv'
 MP4Box_path = '/usr/bin/MP4Box'
 
+profiles = ['FireTV', 'TestProfile']
 
-parser = argparse.ArgumentParser(description='Dumps video information as json for use by encode script')
+def getStreams(path):
+    command = [avprobe_path, '-loglevel', 'quiet', '-show_streams', '-of', 'json', path]
+    #print " ".join(command)
 
-parser.add_argument('input_file', help="path to the json file to read")
-parser.add_argument('output_dir', help="root folder to output converted video to")
-parser.add_argument('--exclude-relative-path', help="", action="store_true")
+    try:
+        output = subprocess.check_output(command)
+    except:
+        return None
 
-args = parser.parse_args()
+    return json.loads(output)
 
-converted_path = args.output_dir
-include_relative_path = not args.exclude_relative_path
+def getNext():
+    query = urllib.urlencode({ 'profile': profiles }, True)
+    req = urllib2.Request('http://localhost:8080/get_next', query)
+    response = urllib2.urlopen(req)
+    data = json.load(response)
 
-to_process = None
+    if len(data['list']) > 0:
+        return data['list'][0]
+    else:
+        return None
 
-if args.input_file == '-':
-    to_process = json.load(sys.stdin)
-else:
-    to_process = json.load(open(args.input_file))
+def update_encode(rowid, status, percent_complete, framerate):
+    obj = {
+        'RowID': rowid,
+        'Status': status,
+        'PercentComplete': percent_complete,
+        'FrameRate': framerate
+    }
 
-search_path = to_process['search_path']
+    req = urllib2.Request('http://localhost:8080/update_encode')
+    req.add_header('Content-Type', 'application/json')
+
+    response = urllib2.urlopen(req, json.dumps(obj))
 
 
 from threading import Thread
@@ -89,7 +116,7 @@ def quote_if_spaces(str):
 
     return str
 
-def execute(command):
+def execute(command, status=None):
     global should_stop
     import subprocess
 
@@ -132,6 +159,20 @@ def execute(command):
         if err:
             if err.startswith('frame='):
                 err = err.replace('\n', '\r')
+
+                indexoffps = err.find('fps=')
+                indexofnextwhitespace = err.find('q=', indexoffps)
+
+                framerate = 0.0
+
+                try:
+                    framerate = float(err[indexoffps + 4:indexofnextwhitespace - 1])
+                except:
+                    #print err[indexoffps + 4:indexofnextwhitespace]
+                    pass
+
+                status(0.0, framerate)
+
             else:
                 full_error.append(err)
 
@@ -179,8 +220,9 @@ def mkdir_p(path):
         else: raise
 
 
-def encode(movie, force_no_subs=False):
+def encode(movie):
     global should_stop
+    global last_update
     # We want a video stream no wider than 1280 with Main 4.0 profile or lower
     # We want an audio stream of AAC at 160 with dolby pro logic (if coming from
     #    5.1) or stereo or mono
@@ -199,10 +241,23 @@ def encode(movie, force_no_subs=False):
     audio_i = 0
     subtitle_i = 0
 
-    input_file = os.path.join(movie['folder'], movie['name'] + movie['extn'])
+    input_file = movie['InputPath']
+
+    root, input_file_name = os.path.split(input_file)
+
+    name, extn = os.path.splitext(input_file_name)
+    extn = extn.lower()
 
     if os.path.isfile(input_file):
-        print movie['name']
+        print input_file
+
+        temp_file = name + '.mp4'
+        subtitle_file = os.path.join(root, name + '.srt')
+        output_file = movie['OutputPath']
+
+        if os.path.isfile(output_file):
+            update_encode(movie['RowID'], 'Skipped', 0.0, 0.0)
+            return False
 
         for stream in movie['streams']:
             if stream['codec_type'] == 'video':
@@ -238,19 +293,9 @@ def encode(movie, force_no_subs=False):
         if subtitle_stream_index < 0:
             subtitle_stream_index = 0
 
-        temp_file = movie['name'] + '.mp4'
-        subtitle_file = os.path.join(movie['folder'], movie['name'] + '.srt')
-
-        output_file = None
-
-        if include_relative_path:
-            output_file = os.path.join(movie['folder'], movie['name'] + '.mp4').replace(search_path, converted_path)
-        else:
-            output_file = os.path.join(converted_path, movie['name'] + '.mp4')
-
         mkdir_p(os.path.dirname(output_file))
 
-        use_srt_file = subtitle_stream is None and os.path.isfile(subtitle_file) and not force_no_subs
+        use_srt_file = subtitle_stream is None and os.path.isfile(subtitle_file)
         srt_file_encoding = None
 
         if use_srt_file:
@@ -368,13 +413,10 @@ def encode(movie, force_no_subs=False):
             temp_file,
         ])
 
-        if os.path.isfile(output_file):
-            return False
-
         f = open('reasons.log', 'a')
         f.write(datetime.datetime.now().isoformat())
         f.write(' ')
-        f.write(movie['name'].encode('UTF-8'))
+        f.write(name.encode('UTF-8'))
         f.write('\n')
         f.write('; '.join(reasons))
         f.write('\n')
@@ -382,7 +424,17 @@ def encode(movie, force_no_subs=False):
         f.write('\n')
         f.close()
 
-        success = execute(command)
+        update_encode(movie['RowID'], 'Encoding', 0.0, 0.0)
+
+        def status(percent_complete, framerate):
+            global last_update
+            now = datetime.datetime.now()
+
+            if (now - last_update).total_seconds() > 10:
+                update_encode(movie['RowID'], 'Encoding', percent_complete, framerate)
+                last_update = now
+
+        success = execute(command, status)
 
         if success:
             command = [
@@ -392,10 +444,15 @@ def encode(movie, force_no_subs=False):
                 temp_file
             ]
 
+            update_encode(movie['RowID'], 'Muxing', 0.0, 0.0)
+
             success = execute(command)
 
             if success:
                 print 'Copying to final destination...'
+
+                update_encode(movie['RowID'], 'Copying', 0.0, 0.0)
+
                 try:
                     shutil.move(temp_file, output_file + '.tmp')
                 except:
@@ -414,25 +471,29 @@ def encode(movie, force_no_subs=False):
                 if copy_video and copy_audio and os.path.isfile(output_file):
                     os.remove(input_file)
 
+                update_encode(movie['RowID'], 'Complete', 0.0, 0.0)
+
                 return True
-#        elif not should_stop:
-#            return encode(movie, force_no_subs=True)
+            else:
+                update_encode(movie['RowID'], 'Error', 0.0, 0.0)
+        else:
+            update_encode(movie['RowID'], 'Error', 0.0, 0.0)
+    else:
+        update_encode(movie['RowID'], 'FileNotFound', 0.0, 0.0)
+        return False
 
-    return False
 
+for video in iter(getNext, None):
+    video = getNext()
+    video_info = getStreams(video['InputPath'])
 
-good = True
+    if video_info is not None:
+        video['streams'] = video_info['streams']
+        encode(video)
+    else:
+        update_encode(video['RowID'], 'InvalidInputFile', 0.0, 0.0)
 
-for video in to_process['videos']:
     if should_stop:
-        print 'Should Stop!!'
         break
 
-    good = encode(video) and good
-
-    #break
-
-if not good:
-    sys.exit(1)
-
-sys.exit(0)
+    #print json.dumps(video, indent=4, sort_keys=True)
