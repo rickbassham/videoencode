@@ -29,7 +29,7 @@ class DataManager(Manager):
                 else:
                     self.cursor.execute('UPDATE Version SET Version = ?', (version + 1,))
                 self.conn.commit()
-                version = version + 1
+                version += 1
 
     def current_version(self):
         self.cursor.execute('SELECT Version FROM Version')

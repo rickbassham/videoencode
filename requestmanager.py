@@ -35,7 +35,7 @@ class RequestManager(Manager):
 
         with self._requests_lock:
             request_id = self._next_request_id
-            self._next_request_id = self._next_request_id + 1
+            self._next_request_id += 1
             self._requests[request_id] = { 'event': Event(), 'packet': None }
 
         return request_id

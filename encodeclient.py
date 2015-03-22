@@ -289,7 +289,7 @@ def encode(movie):
                 elif stream['width'] > video_stream['width'] and stream['width'] <= 1280:
                     video_stream = stream
                     video_stream_index = video_i
-                video_i = video_i + 1
+                video_i += 1
             elif stream['codec_type'] == 'audio':
                 if audio_stream is None:
                     audio_stream = stream
@@ -297,7 +297,7 @@ def encode(movie):
                 elif stream['channels'] > audio_stream['channels'] or stream.get('bit_rate', 0) > audio_stream.get('bit_rate', 0):
                     audio_stream = stream
                     audio_stream_index = audio_i
-                audio_i = audio_i + 1
+                audio_i += 1
 
         for stream in movie['streams']:
             if stream['codec_type'] == 'subtitle':
@@ -318,7 +318,7 @@ def encode(movie):
                     elif audio_stream_lang != 'eng' and lang == 'eng':
                         subtitle_stream = stream
                         subtitle_stream_index = subtitle_i
-                subtitle_i = subtitle_i + 1
+                subtitle_i += 1
 
         if subtitle_stream_index < 0:
             subtitle_stream_index = 0
