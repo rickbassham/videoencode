@@ -482,12 +482,13 @@ def encode(movie):
                     os.remove(input_file)
 
                 update_encode(movie['RowID'], 'Complete', 0.0, 0.0)
-
                 return True
             else:
                 update_encode(movie['RowID'], 'Error', 0.0, 0.0)
+                return False
         else:
             update_encode(movie['RowID'], 'Error', 0.0, 0.0)
+            return False
     else:
         update_encode(movie['RowID'], 'FileNotFound', 0.0, 0.0)
         return False
@@ -499,7 +500,12 @@ for video in iter(getNext, None):
 
     if video_info is not None:
         video['streams'] = video_info['streams']
-        encode(video)
+
+        try:
+            encode(video)
+        except Exception as e:
+            update_encode(video['RowID'], 'Exception', 0.0, 0.0)
+            print str(e)
     else:
         update_encode(video['RowID'], 'InvalidInputFile', 0.0, 0.0)
 
