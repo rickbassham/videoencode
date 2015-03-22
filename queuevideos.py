@@ -59,7 +59,9 @@ def addVideo(path):
             'PercentComplete': 0.0,
             'FrameRate': 0.0,
             'InputPath': input_file,
-            'OutputPath': output_file
+            'OutputPath': output_file,
+            'ErrorText': '',
+            'EncodingReasons', ''
         }
 
         print input_file
