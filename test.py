@@ -42,7 +42,7 @@ def update_encode():
     print response
 
 def reset_to_pending():
-    statuses = [ 'Starting', 'InvalidInputFile', 'Error', 'Exception' ]
+    statuses = [ 'Starting', 'Error', 'Exception' ]
     query = urllib.urlencode({ 'status': statuses }, True)
     req = urllib2.Request('http://localhost:8080/reset_to_pending', query)
     response = urllib2.urlopen(req)

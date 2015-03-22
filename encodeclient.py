@@ -1,22 +1,19 @@
 #!/usr/bin/python
 
+import argparse
+import chardet
+import datetime
+import errno
 import json
+import os
+import re
+import shutil
+import signal
+import subprocess
+import sys
 import time
 import urllib
 import urllib2
-import subprocess
-import signal
-import sys
-import os
-import re
-import errno
-import signal
-import sys
-import shutil
-import chardet
-import json
-import argparse
-import datetime
 
 should_stop = False
 def signal_handler(signal, frame):
@@ -73,12 +70,20 @@ def getNext():
     else:
         return None
 
-def update_encode(rowid, status, percent_complete, framerate):
+def update_encode(rowid, status, percent_complete, framerate, encoding_reasons, error_text):
+    if error_text is None:
+        error_text = ''
+
+    if encoding_reasons is None:
+        encoding_reasons = ''
+
     obj = {
         'RowID': rowid,
         'Status': status,
         'PercentComplete': percent_complete,
-        'FrameRate': framerate
+        'FrameRate': framerate,
+        'EncodingReasons': encoding_reasons,
+        'ErrorText': error_text
     }
 
     try:
@@ -225,9 +230,9 @@ def execute(command, status=None):
         f.write(''.join(full_error))
         f.write('\n')
         f.write('\n')
-        return False
+        return False, ''.join(full_output), ''.join(full_error)
 
-    return True
+    return True, None, None
 
 def mkdir_p(path):
     try:
@@ -267,14 +272,13 @@ def encode(movie):
     extn = extn.lower()
 
     if os.path.isfile(input_file):
-        print input_file
 
         temp_file = name + '.mp4'
         subtitle_file = os.path.join(root, name + '.srt')
         output_file = movie['OutputPath']
 
         if os.path.isfile(output_file):
-            update_encode(movie['RowID'], 'Skipped', 0.0, 0.0)
+            update_encode(movie['RowID'], 'Skipped', 0.0, 0.0, '', 'Output file already exists.')
             return False
 
         for stream in movie['streams']:
@@ -371,12 +375,14 @@ def encode(movie):
         if audio_stream['channels'] <= 2:
             copy_audio = True
 
+        video_needs_encoding = False
 
         if subtitle_stream is None and video_stream['codec_name'] == 'h264' and video_stream['width'] <= 1280 and video_stream['level'] <= 41 and video_stream['profile'] in valid_profiles:
             command.extend([
                 "-codec:v:{0}".format(video_stream_index), "copy",
             ])
         else:
+            video_needs_encoding = True
             command.extend([
                 "-codec:v:{0}".format(video_stream_index), "libx264",
     #            "-threads", "2",
@@ -439,8 +445,8 @@ def encode(movie):
             temp_file,
         ])
 
-        if exclude_video_change and not copy_video:
-            update_encode(movie['RowID'], 'PendingFull', 0.0, 0.0)
+        if exclude_video_change and video_needs_encoding:
+            update_encode(movie['RowID'], 'PendingFull', 0.0, 0.0, '; '.join(reasons), '')
             return False
 
         f = open('reasons.log', 'a')
@@ -454,17 +460,17 @@ def encode(movie):
         f.write('\n')
         f.close()
 
-        update_encode(movie['RowID'], 'Encoding', 0.0, 0.0)
+        update_encode(movie['RowID'], 'Encoding', 0.0, 0.0, '; '.join(reasons), '')
 
         def status(percent_complete, framerate):
             global last_update
             now = datetime.datetime.now()
 
             if (now - last_update).total_seconds() > 10:
-                update_encode(movie['RowID'], 'Encoding', percent_complete, framerate)
+                update_encode(movie['RowID'], 'Encoding', percent_complete, framerate, '; '.join(reasons), '')
                 last_update = now
 
-        success = execute(command, status)
+        success, output, error = execute(command, status)
 
         if success:
             command = [
@@ -474,14 +480,14 @@ def encode(movie):
                 temp_file
             ]
 
-            update_encode(movie['RowID'], 'Muxing', 0.0, 0.0)
+            update_encode(movie['RowID'], 'Muxing', 0.0, 0.0, '; '.join(reasons), '')
 
-            success = execute(command)
+            success, output, error = execute(command)
 
             if success:
                 print 'Copying to final destination...', output_file
 
-                update_encode(movie['RowID'], 'Copying', 0.0, 0.0)
+                update_encode(movie['RowID'], 'Copying', 0.0, 0.0, '; '.join(reasons), '')
 
                 try:
                     shutil.move(temp_file, output_file + '.tmp')
@@ -501,16 +507,16 @@ def encode(movie):
                 if copy_video and copy_audio and os.path.isfile(output_file):
                     os.remove(input_file)
 
-                update_encode(movie['RowID'], 'Complete', 0.0, 0.0)
+                update_encode(movie['RowID'], 'Complete', 0.0, 0.0, '; '.join(reasons), '')
                 return True
             else:
-                update_encode(movie['RowID'], 'Error', 0.0, 0.0)
+                update_encode(movie['RowID'], 'Error', 0.0, 0.0, '; '.join(reasons), output + error)
                 return False
         else:
-            update_encode(movie['RowID'], 'Error', 0.0, 0.0)
+            update_encode(movie['RowID'], 'Error', 0.0, 0.0, '; '.join(reasons), output + error)
             return False
     else:
-        update_encode(movie['RowID'], 'FileNotFound', 0.0, 0.0)
+        update_encode(movie['RowID'], 'FileNotFound', 0.0, 0.0, '', 'Input file was not found.')
         return False
 
 
@@ -524,10 +530,10 @@ for video in iter(getNext, None):
         try:
             encode(video)
         except Exception as e:
-            update_encode(video['RowID'], 'Exception', 0.0, 0.0)
+            update_encode(video['RowID'], 'Exception', 0.0, 0.0, '', str(e))
             print str(e)
     else:
-        update_encode(video['RowID'], 'InvalidInputFile', 0.0, 0.0)
+        update_encode(video['RowID'], 'InvalidInputFile', 0.0, 0.0, '', 'Input file is not a valid video.')
 
     if should_stop:
         break
