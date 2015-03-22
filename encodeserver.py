@@ -370,13 +370,6 @@ import cherrypy
 class RequestManager(Manager):
     def __init__(self):
         Manager.__init__(self, 'RequestManager')
-        cherrypy.server.socket_host = '0.0.0.0'
-        cherrypy.config.update({'engine.autoreload.on': False})
-        cherrypy.tree.mount(self, '/')
-        cherrypy.engine.start()
-        self._next_request_id = 0
-        self._requests = {}
-        self._requests_lock = Lock()
 
     def process(self, packet):
         request_id = packet.payload.get('request_id', None)
@@ -385,9 +378,17 @@ class RequestManager(Manager):
             self._requests[request_id]['packet'] = packet
             self._requests[request_id]['event'].set()
 
-    def stop(self):
+    def starting(self):
+        cherrypy.server.socket_host = '0.0.0.0'
+        cherrypy.config.update({'engine.autoreload.on': False})
+        cherrypy.tree.mount(self, '/')
+        cherrypy.engine.start()
+        self._next_request_id = 0
+        self._requests = {}
+        self._requests_lock = Lock()
+
+    def stopping(self):
         cherrypy.engine.exit()
-        Manager.stop(self)
 
     def register_request(self):
         request_id = None
@@ -568,8 +569,8 @@ def Application():
 
     print 'Stopping managers...'
 
-    mgr1.stop()
     mgr2.stop()
+    mgr1.stop()
 
 
 if __name__ == '__main__':

@@ -1,9 +1,10 @@
 #!/usr/bin/python
 
 import json
+import os
 
-from Queue import Queue, Empty
-from threading import Thread, Event
+from Queue import Empty
+from multiprocessing import Process, Event, Queue
 
 class Packet(object):
     def __init__(self, key, to_manager, from_manager, payload={}):
@@ -18,9 +19,9 @@ class Packet(object):
         self.from_manager = old_to
 
 
-class Manager(Thread):
+class Manager(Process):
     def __init__(self, name):
-        Thread.__init__(self)
+        Process.__init__(self)
         self.name = name
         self.incoming = Queue()
         self.connected_managers = {}
@@ -37,6 +38,7 @@ class Manager(Thread):
 
         if mgr is not None:
             mgr.incoming.put(packet)
+            print os.getpid(), 'Sending packet', packet.key
         else:
             raise Exception('Manager not found: {0}'.format(destination_manager))
 
@@ -51,7 +53,7 @@ class Manager(Thread):
             try:
                 self.dowork()
             except Exception as e:
-                print e
+                print os.getpid(), e
                 self._event.set()
 
         self.stopping()
@@ -64,6 +66,7 @@ class Manager(Thread):
             pkt = self.incoming.get(False)
 
             if pkt.to_manager == self.name:
+                print os.getpid(), 'Received packet', pkt.key
                 self.process(pkt)
             else:
                 self.send(pkt)
