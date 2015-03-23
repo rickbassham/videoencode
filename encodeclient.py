@@ -196,6 +196,8 @@ def execute(command, status=None):
 
                 status(0.0, framerate)
 
+            elif err.startswith('ISO File Writing:'):
+                err = err.replace('\n', '\r')
             else:
                 full_error.append(err)
 
@@ -315,7 +317,7 @@ def encode(movie):
                     if audio_stream_lang == 'eng' and stream['disposition']['forced'] and stream['tags']['language'] == 'eng':
                         subtitle_stream = stream
                         subtitle_stream_index = subtitle_i
-                    elif audio_stream_lang != 'eng' and lang == 'eng':
+                    elif audio_stream_lang is not None and audio_stream_lang != 'eng' and lang == 'eng':
                         subtitle_stream = stream
                         subtitle_stream_index = subtitle_i
                 subtitle_i += 1
