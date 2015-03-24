@@ -53,7 +53,7 @@ class Manager(Process):
             try:
                 self.dowork()
             except Exception as e:
-                print os.getpid(), e
+                print os.getpid(), str(e)
                 self._event.set()
 
         self.stopping()

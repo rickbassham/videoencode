@@ -40,7 +40,7 @@ class RequestManager(Manager):
 
         return request_id
 
-    def wait_for_response(self, request_id, timeout=10):
+    def wait_for_response(self, request_id, timeout=120):
         req = None
 
         with self._requests_lock:
@@ -71,11 +71,14 @@ class RequestManager(Manager):
 
         response_packet = self.wait_for_response(request_id)
 
-        l = payloadresponse_packet.payload.get('list', None)
-        if l is not None:
-            response_packet.payload['count'] = len(l)
+        if response_packet is not None:
+            l = payloadresponse_packet.payload.get('list', None)
+            if l is not None:
+                response_packet.payload['count'] = len(l)
 
-        return response_packet.payload
+            return response_packet.payload
+        else:
+            return None
 
     @cherrypy.expose
     @cherrypy.tools.json_out()
@@ -92,11 +95,14 @@ class RequestManager(Manager):
 
         response_packet = self.wait_for_response(request_id)
 
-        l = response_packet.payload.get('list', None)
-        if l is not None:
-            response_packet.payload['count'] = len(l)
+        if response_packet is not None:
+            l = response_packet.payload.get('list', None)
+            if l is not None:
+                response_packet.payload['count'] = len(l)
 
-        return response_packet.payload
+            return response_packet.payload
+        else:
+            return None
 
     @cherrypy.expose
     @cherrypy.tools.json_out()
@@ -119,7 +125,10 @@ class RequestManager(Manager):
 
         response_packet = self.wait_for_response(request_id)
 
-        return response_packet.payload
+        if response_packet is not None:
+            return response_packet.payload
+        else:
+            return None
 
     @cherrypy.expose
     @cherrypy.tools.json_out()
@@ -130,7 +139,10 @@ class RequestManager(Manager):
 
         response_packet = self.wait_for_response(request_id)
 
-        return response_packet.payload
+        if response_packet is not None:
+            return response_packet.payload
+        else:
+            return None
 
     @cherrypy.expose
     @cherrypy.tools.json_out()
@@ -143,7 +155,10 @@ class RequestManager(Manager):
         self.send(Packet('add_encode', 'DataManager', self.name, payload={ 'request_id': request_id, 'obj': obj }))
         response_packet = self.wait_for_response(request_id)
 
-        return response_packet.payload
+        if response_packet is not None:
+            return response_packet.payload
+        else:
+            return None
 
     @cherrypy.expose
     @cherrypy.tools.json_out()
@@ -156,7 +171,10 @@ class RequestManager(Manager):
         self.send(Packet('update_encode', 'DataManager', self.name, payload={ 'request_id': request_id, 'obj': obj }))
         response_packet = self.wait_for_response(request_id)
 
-        return response_packet.payload
+        if response_packet is not None:
+            return response_packet.payload
+        else:
+            return None
 
     @cherrypy.expose
     @cherrypy.tools.json_out()
@@ -173,7 +191,10 @@ class RequestManager(Manager):
 
         response_packet = self.wait_for_response(request_id)
 
-        return response_packet.payload
+        if response_packet is not None:
+            return response_packet.payload
+        else:
+            return None
 
     @cherrypy.expose
     @cherrypy.tools.json_out()
@@ -190,11 +211,14 @@ class RequestManager(Manager):
 
         response_packet = self.wait_for_response(request_id)
 
-        l = response_packet.payload.get('list', None)
-        if l is not None:
-            response_packet.payload['count'] = len(l)
+        if response_packet is not None:
+            l = response_packet.payload.get('list', None)
+            if l is not None:
+                response_packet.payload['count'] = len(l)
 
-        return response_packet.payload
+            return response_packet.payload
+        else:
+            return None
 
     @cherrypy.expose
     @cherrypy.tools.json_out()
@@ -205,8 +229,11 @@ class RequestManager(Manager):
 
         response_packet = self.wait_for_response(request_id)
 
-        l = response_packet.payload.get('list', None)
-        if l is not None:
-            response_packet.payload['count'] = len(l)
+        if response_packet is not None:
+            l = response_packet.payload.get('list', None)
+            if l is not None:
+                response_packet.payload['count'] = len(l)
 
-        return response_packet.payload
+            return response_packet.payload
+        else:
+            return None

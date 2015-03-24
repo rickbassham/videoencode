@@ -15,12 +15,9 @@ import time
 import urllib
 import urllib2
 
-should_stop = False
-def signal_handler(signal, frame):
-    global should_stop
-    print('You pressed Ctrl+C!')
-    should_stop = True
-signal.signal(signal.SIGINT, signal_handler)
+import interrupt
+
+e = interrupt.GetInterruptEvent()
 
 parser = argparse.ArgumentParser(description='Encodes videos queued at the specified server')
 
@@ -60,14 +57,17 @@ def getNext():
     if not exclude_video_change:
         status.append('PendingFull')
 
-    query = urllib.urlencode({ 'profile': profiles, 'status': status }, True)
-    req = urllib2.Request('http://{0}:8080/get_next'.format(server), query)
-    response = urllib2.urlopen(req)
-    data = json.load(response)
+    try:
+        query = urllib.urlencode({ 'profile': profiles, 'status': status }, True)
+        req = urllib2.Request('http://{0}:8080/get_next'.format(server), query)
+        response = urllib2.urlopen(req)
+        data = json.load(response)
 
-    if len(data['list']) > 0:
-        return data['list'][0]
-    else:
+        if len(data['list']) > 0:
+            return data['list'][0]
+        else:
+            return None
+    except:
         return None
 
 def update_encode(rowid, status, percent_complete, framerate, encoding_reasons, error_text):
@@ -140,7 +140,7 @@ def quote_if_spaces(str):
     return str
 
 def execute(command, status=None):
-    global should_stop
+    global e
     import subprocess
 
     cmd = ' '.join(map(quote_if_spaces, command))
@@ -211,7 +211,7 @@ def execute(command, status=None):
         readstdout()
         readstderr()
 
-        if should_stop:
+        if e.is_set():
             p.kill()
 
 
@@ -246,7 +246,7 @@ def mkdir_p(path):
 
 
 def encode(movie):
-    global should_stop
+    global e
     global last_update
     # We want a video stream no wider than 1280 with Main 4.0 profile or lower
     # We want an audio stream of AAC at 160 with dolby pro logic (if coming from
@@ -522,22 +522,23 @@ def encode(movie):
         return False
 
 
-for video in iter(getNext, None):
-    print video['InputPath']
-    video_info = getStreams(video['InputPath'])
+while not e.wait(10):
+    for video in iter(getNext, None):
+        print video['InputPath']
+        video_info = getStreams(video['InputPath'])
 
-    if video_info is not None:
-        video['streams'] = video_info['streams']
+        if video_info is not None:
+            video['streams'] = video_info['streams']
 
-        try:
-            encode(video)
-        except Exception as e:
-            update_encode(video['RowID'], 'Exception', 0.0, 0.0, '', str(e))
-            print str(e)
-    else:
-        update_encode(video['RowID'], 'InvalidInputFile', 0.0, 0.0, '', 'Input file is not a valid video.')
+            try:
+                encode(video)
+            except Exception as e:
+                update_encode(video['RowID'], 'Exception', 0.0, 0.0, '', str(e))
+                print str(e)
+        else:
+            update_encode(video['RowID'], 'InvalidInputFile', 0.0, 0.0, '', 'Input file is not a valid video.')
 
-    if should_stop:
-        break
+        if e.is_set():
+            break
 
-    #print json.dumps(video, indent=4, sort_keys=True)
+        #print json.dumps(video, indent=4, sort_keys=True)
