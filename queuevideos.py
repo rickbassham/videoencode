@@ -61,12 +61,12 @@ def addVideo(path):
             'InputPath': input_file,
             'OutputPath': output_file,
             'ErrorText': '',
-            'EncodingReasons', ''
+            'EncodingReasons': ''
         }
 
         print input_file
 
-        req = urllib2.Request('http://localhost:8080/add_encode')
+        req = urllib2.Request('http://192.168.1.27:8080/add_encode')
         req.add_header('Content-Type', 'application/json')
 
         response = urllib2.urlopen(req, json.dumps(obj))
