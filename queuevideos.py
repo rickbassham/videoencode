@@ -25,6 +25,8 @@ parser = argparse.ArgumentParser(description='Adds videos to encode server queue
 
 parser.add_argument('video_dir', help="root folder to find video info for")
 parser.add_argument('output_dir', help="root folder to output converted video to")
+parser.add_argument('--priority', help="encoding priority", default=1)
+parser.add_argument('--server', help="encoding priority", default="localhost")
 parser.add_argument('--exclude-relative-path', help="", action="store_true")
 
 args = parser.parse_args()
@@ -32,9 +34,12 @@ args = parser.parse_args()
 search_path = args.video_dir
 converted_path = args.output_dir
 include_relative_path = not args.exclude_relative_path
+priority = args.priority
+server = args.server
 
 def addVideo(path):
     global combos
+    global priority
     root, name = os.path.split(path)
 
     x, extn = os.path.splitext(name)
@@ -53,7 +58,7 @@ def addVideo(path):
             'CreatedTimestamp': int(time.time()),
             'LastUpdatedTimestamp': int(time.time()),
             'Profile': 'FireTV',
-            'Priority': 1,
+            'Priority': priority,
             'Status': 'Pending',
             'ShouldStop': False,
             'PercentComplete': 0.0,
@@ -66,7 +71,7 @@ def addVideo(path):
 
         print input_file
 
-        req = urllib2.Request('http://192.168.1.27:8080/add_encode')
+        req = urllib2.Request('http://{0}:8080/add_encode'.format(server))
         req.add_header('Content-Type', 'application/json')
 
         response = urllib2.urlopen(req, json.dumps(obj))
