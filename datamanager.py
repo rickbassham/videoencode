@@ -249,66 +249,21 @@ class DataManager(Manager):
 
         return count
 
-    def get_all_with_status(self, statuses=[]):
-        query = (
-            "SELECT"
-            "   RowID,"
-            "   CreatedTimestamp,"
-            "   LastUpdatedTimestamp,"
-            "   Profile,"
-            "   Priority,"
-            "   Status,"
-            "   ShouldStop,"
-            "   PercentComplete,"
-            "   FrameRate,"
-            "   InputPath,"
-            "   OutputPath,"
-            '   EncodingReasons,'
-            '   ErrorText '
-            "FROM"
-            "   encodingqueue "
-            "WHERE"
-        )
+    def get_count_per_status(self):
+        query = "SELECT COUNT(1) as Count, Status From encodingqueue GROUP BY Status ORDER BY Count"
 
-        parameters = []
+        print query
 
-        if len(statuses) > 0:
-            if len(statuses) > 1:
-                query = query + ' Status in (%s) ' % ','.join('?'*len(statuses))
-                parameters = list(statuses)
-            else:
-                query = query + ' Status = ?'
-                parameters = [statuses[0]]
-        else:
-            raise Exception("No statuses specified.")
-
-        print query, parameters
-
-        self.cursor.execute(query, parameters)
+        self.cursor.execute(query)
 
         rows = self.cursor.fetchall()
 
-        encoding_list = []
+        result = {}
 
         for row in rows:
-            encoding_list.append({
-                'RowID': row[0],
-                'CreatedTimestamp': row[1],
-                'LastUpdatedTimestamp': row[2],
-                'Profile': row[3],
-                'Priority': row[4],
-                'Status': row[5],
-                'ShouldStop': row[6],
-                'PercentComplete': row[7],
-                'FrameRate': row[8],
-                'InputPath': row[9],
-                'OutputPath': row[10],
-                'EncodingReasons': row[11],
-                'ErrorText': row[12]
-                })
+            result[row[1]] = row[0]
 
-        return encoding_list
-
+        return result
     def starting(self):
         self.conn = sqlite3.connect('encodingqueue.db')
         self.cursor = self.conn.cursor()
@@ -336,6 +291,8 @@ class DataManager(Manager):
             self.process_request_for_active(packet)
         elif packet.key == "get_all_with_status":
             self.process_request_all_with_status(packet)
+        elif packet.key == "get_count_per_status":
+            self.process_request_for_count_per_status(packet)
 
     def process_request_for_index(self, packet):
         packet.payload['list'] = self.encodingqueue_list()
@@ -343,7 +300,7 @@ class DataManager(Manager):
         self.send(packet)
 
     def process_request_for_encode_list(self, packet):
-        packet.payload['list'] = self.encodingqueue_list(packet.payload['profiles'])
+        packet.payload['list'] = self.encodingqueue_list(profiles=packet.payload['profiles'])
         packet.return_to_sender()
         self.send(packet)
 
@@ -373,11 +330,16 @@ class DataManager(Manager):
         self.send(packet)
 
     def process_request_all_with_status(self, packet):
-        packet.payload['list'] = self.get_all_with_status(packet.payload['statuses'])
+        packet.payload['list'] = self.encodingqueue_list(statuses=packet.payload['statuses'])
         packet.return_to_sender()
         self.send(packet)
 
     def process_request_for_active(self, packet):
         packet.payload['list'] = self.get_active()
+        packet.return_to_sender()
+        self.send(packet)
+
+    def process_request_for_count_per_status(self, packet):
+        packet.payload['count_per_status'] = self.get_count_per_status()
         packet.return_to_sender()
         self.send(packet)

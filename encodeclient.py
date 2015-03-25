@@ -379,7 +379,7 @@ def encode(movie):
 
         video_needs_encoding = False
 
-        if subtitle_stream is None and video_stream['codec_name'] == 'h264' and video_stream['width'] <= 1280 and video_stream['level'] <= 40 and video_stream['profile'] in valid_profiles:
+        if subtitle_stream is None and video_stream['codec_name'] == 'h264' and video_stream['width'] <= 1280 and video_stream['level'] <= 41 and video_stream['profile'] in valid_profiles:
             command.extend([
                 "-codec:v:{0}".format(video_stream_index), "copy",
             ])
@@ -391,7 +391,7 @@ def encode(movie):
                 "-crf", "22.0",
                 "-profile:v", "high",
                 "-filter:v:{0}".format(video_stream_index), "scale=w='min(1280\, iw):trunc(ow/a/2)*2'",
-                "-x264-params", "level=40:cabac=1:vbv-maxrate=10000:vbv-bufsize=20000",
+                "-x264-params", "level=41:cabac=1:vbv-maxrate=10000:vbv-bufsize=20000",
             ])
 
             if video_stream['codec_name'] != 'h264':
@@ -400,7 +400,7 @@ def encode(movie):
             if video_stream['width'] > 1280:
                 reasons.append('video width {0}'.format(video_stream['width']))
 
-            if video_stream['level'] > 40:
+            if video_stream['level'] > 41:
                 reasons.append('video level {0}'.format(video_stream['level']))
 
             if video_stream.get('profile', None) not in valid_profiles:

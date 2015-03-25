@@ -237,3 +237,17 @@ class RequestManager(Manager):
             return response_packet.payload
         else:
             return None
+
+    @cherrypy.expose
+    @cherrypy.tools.json_out()
+    def get_count_per_status(self):
+        request_id = self.register_request()
+
+        self.send(Packet('get_count_per_status', 'DataManager', self.name, payload={ 'request_id': request_id }))
+
+        response_packet = self.wait_for_response(request_id)
+
+        if response_packet is not None:
+            return response_packet.payload
+        else:
+            return None
