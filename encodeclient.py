@@ -373,8 +373,6 @@ def encode(movie):
 
         if video_stream['width'] <= 1280:
             copy_video = True
-
-        if audio_stream['channels'] <= 2:
             copy_audio = True
 
         video_needs_encoding = False
@@ -506,10 +504,11 @@ def encode(movie):
                 except:
                     pass
 
-                if copy_video and copy_audio and os.path.isfile(output_file):
+                if not video_needs_encoding and os.path.isfile(output_file):
                     os.remove(input_file)
 
                 update_encode(movie['RowID'], 'Complete', 0.0, 0.0, '; '.join(reasons), '')
+                print 'Done'
                 return True
             else:
                 update_encode(movie['RowID'], 'Error', 0.0, 0.0, '; '.join(reasons), output + error)
