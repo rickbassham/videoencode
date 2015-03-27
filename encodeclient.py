@@ -1,5 +1,12 @@
 #!/usr/bin/python
 
+# This file assumes avconv is
+# ffmpeg version 2.5.4 Copyright (c) 2000-2015 the FFmpeg developers
+#     configuration: --prefix=/usr --extra-cflags='-g -O2 -fstack-protector-strong -Wformat -Werror=format-security ' --extra-ldflags='-Wl,-z,relro' --cc='ccache cc' --enable-shared --enable-libmp3lame --enable-gpl --enable-nonfree --enable-libvorbis --enable-pthreads --enable-libfaac --enable-libxvid --enable-postproc --enable-x11grab --enable-libgsm --enable-libtheora --enable-libopencore-amrnb --enable-libopencore-amrwb --enable-libx264 --enable-libspeex --enable-nonfree --disable-stripping --enable-libvpx --enable-libschroedinger --disable-encoder=libschroedinger --enable-version3 --enable-libopenjpeg --enable-librtmp --enable-avfilter --enable-libfreetype --enable-libvo-aacenc --disable-decoder=amrnb --enable-libvo-amrwbenc --enable-libaacplus --libdir=/usr/lib/x86_64-linux-gnu --disable-vda --enable-libbluray --enable-libcdio --enable-gnutls --enable-frei0r --enable-openssl --enable-libass --enable-libopus --enable-fontconfig --enable-libpulse --disable-mips32r2 --disable-mipsdspr1 --disable-mipsdspr2 --enable-libvidstab --enable-libzvbi --enable-avresample --disable-htmlpages --disable-podpages --enable-libutvideo --enable-libiec61883 --enable-libfdk-aac --enable-vaapi --enable-libx265 --enable-libdc1394 --disable-altivec --shlibdir=/usr/lib/x86_64-linux-gnu
+# and MP4Box is
+# MP4Box - GPAC version 0.5.1-DEV-rev4065
+#     configuration: --build=x86_64-linux-gnu --prefix=/usr --includedir=${prefix}/include --mandir=${prefix}/share/man --infodir=${prefix}/share/info --sysconfdir=/etc --localstatedir=/var --libdir=${prefix}/lib/x86_64-linux-gnu --libexecdir=${prefix}/lib/x86_64-linux-gnu --disable-maintainer-mode --disable-dependency-tracking --moddir=${prefix}/lib/x86_64-linux-gnu/gpac --use-js=no --extra-cflags=-fPIC -DPIC -DXP_UNIX -g -O2 -fstack-protector-strong -Wformat -Werror=format-security -D_FORTIFY_SOURCE=2 --extra-ldflags=-Wl,-z,relro -Wl,--as-needed --libdir=lib/x86_64-linux-gnu --use-freenect=yes --use-a52=system --cc=ccache cc --cpp=ccache g++
+
 import argparse
 import chardet
 import datetime
