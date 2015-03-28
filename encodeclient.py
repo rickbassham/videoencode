@@ -77,12 +77,16 @@ def getNext():
     except:
         return None
 
-def update_encode(rowid, status, percent_complete, framerate, encoding_reasons, error_text):
+def update_encode(rowid, status, percent_complete, framerate, encoding_reasons, error_text, encoding_start_time):
     if error_text is None:
         error_text = ''
 
     if encoding_reasons is None:
         encoding_reasons = ''
+
+    now = datetime.datetime.now()
+
+    encoding_time = (now - encoding_start_time).total_seconds()
 
     obj = {
         'RowID': rowid,
@@ -90,7 +94,8 @@ def update_encode(rowid, status, percent_complete, framerate, encoding_reasons, 
         'PercentComplete': percent_complete,
         'FrameRate': framerate,
         'EncodingReasons': encoding_reasons,
-        'ErrorText': error_text
+        'ErrorText': error_text,
+        'EncodingTime': encoding_time
     }
 
     try:
@@ -252,10 +257,10 @@ def mkdir_p(path):
         else: raise
 
 
-def encode(movie):
+def encode(movie, encoding_start_time):
     global e
     global last_update
-    # We want a video stream no wider than 1280 with Main 4.0 profile or lower
+    # We want a video stream no wider than 1920 with Main 4.0 profile or lower
     # We want an audio stream of AAC at 160 with dolby pro logic (if coming from
     #    5.1) or stereo or mono
     # We want a single english subtitle track if it is forced or the audio
@@ -287,7 +292,7 @@ def encode(movie):
         output_file = movie['OutputPath']
 
         if os.path.isfile(output_file):
-            update_encode(movie['RowID'], 'Skipped', 0.0, 0.0, '', 'Output file already exists.')
+            update_encode(movie['RowID'], 'Skipped', 0.0, 0.0, '', 'Output file already exists.', encoding_start_time)
             return False
 
         for stream in movie['streams']:
@@ -295,7 +300,7 @@ def encode(movie):
                 if video_stream is None:
                     video_stream = stream
                     video_stream_index = video_i
-                elif stream['width'] > video_stream['width'] and stream['width'] <= 1280:
+                elif stream['width'] > video_stream['width'] and stream['width'] <= 1920:
                     video_stream = stream
                     video_stream_index = video_i
                 video_i += 1
@@ -378,13 +383,13 @@ def encode(movie):
 
         valid_profiles = ['High', 'Main', 'Baseline', 'Constrained Baseline']
 
-        if video_stream['width'] <= 1280:
+        if video_stream['width'] <= 1920:
             copy_video = True
             copy_audio = True
 
         video_needs_encoding = False
 
-        if subtitle_stream is None and video_stream['codec_name'] == 'h264' and video_stream['width'] <= 1280 and video_stream['level'] <= 41 and video_stream['profile'] in valid_profiles:
+        if subtitle_stream is None and video_stream['codec_name'] == 'h264' and video_stream['width'] <= 1920 and video_stream['level'] <= 41 and video_stream['profile'] in valid_profiles:
             command.extend([
                 "-codec:v:{0}".format(video_stream_index), "copy",
             ])
@@ -395,14 +400,14 @@ def encode(movie):
     #            "-threads", "2",
                 "-crf", "22.0",
                 "-profile:v", "high",
-                "-filter:v:{0}".format(video_stream_index), "scale=w='min(1280\, iw):trunc(ow/a/2)*2'",
+                "-filter:v:{0}".format(video_stream_index), "scale=w='min(1920\, iw):trunc(ow/a/2)*2'",
                 "-x264-params", "level=41:cabac=1:vbv-maxrate=10000:vbv-bufsize=20000",
             ])
 
             if video_stream['codec_name'] != 'h264':
                 reasons.append('video codec {0}'.format(video_stream['codec_name']))
 
-            if video_stream['width'] > 1280:
+            if video_stream['width'] > 1920:
                 reasons.append('video width {0}'.format(video_stream['width']))
 
             if video_stream['level'] > 41:
@@ -453,7 +458,7 @@ def encode(movie):
         ])
 
         if exclude_video_change and video_needs_encoding:
-            update_encode(movie['RowID'], 'PendingFull', 0.0, 0.0, '; '.join(reasons), '')
+            update_encode(movie['RowID'], 'PendingFull', 0.0, 0.0, '; '.join(reasons), '', encoding_start_time)
             return False
 
         f = open('reasons.log', 'a')
@@ -467,14 +472,14 @@ def encode(movie):
         f.write('\n')
         f.close()
 
-        update_encode(movie['RowID'], 'Encoding', 0.0, 0.0, '; '.join(reasons), '')
+        update_encode(movie['RowID'], 'Encoding', 0.0, 0.0, '; '.join(reasons), '', encoding_start_time)
 
         def status(percent_complete, framerate):
             global last_update
             now = datetime.datetime.now()
 
             if (now - last_update).total_seconds() > 10:
-                update_encode(movie['RowID'], 'Encoding', percent_complete, framerate, '; '.join(reasons), '')
+                update_encode(movie['RowID'], 'Encoding', percent_complete, framerate, '; '.join(reasons), '', encoding_start_time)
                 last_update = now
 
         success, output, error = execute(command, status)
@@ -487,14 +492,14 @@ def encode(movie):
                 temp_file
             ]
 
-            update_encode(movie['RowID'], 'Muxing', 0.0, 0.0, '; '.join(reasons), '')
+            update_encode(movie['RowID'], 'Muxing', 0.0, 0.0, '; '.join(reasons), '', encoding_start_time)
 
             success, output, error = execute(command)
 
             if success:
                 print 'Copying to final destination...', output_file
 
-                update_encode(movie['RowID'], 'Copying', 0.0, 0.0, '; '.join(reasons), '')
+                update_encode(movie['RowID'], 'Copying', 0.0, 0.0, '; '.join(reasons), '', encoding_start_time)
 
                 try:
                     shutil.move(temp_file, output_file + '.tmp')
@@ -514,22 +519,24 @@ def encode(movie):
                 if not video_needs_encoding and os.path.isfile(output_file):
                     os.remove(input_file)
 
-                update_encode(movie['RowID'], 'Complete', 0.0, 0.0, '; '.join(reasons), '')
+                update_encode(movie['RowID'], 'Complete', 0.0, 0.0, '; '.join(reasons), '', encoding_start_time)
                 print 'Done'
                 return True
             else:
-                update_encode(movie['RowID'], 'Error', 0.0, 0.0, '; '.join(reasons), output + error)
+                update_encode(movie['RowID'], 'Error', 0.0, 0.0, '; '.join(reasons), output + error, encoding_start_time)
                 return False
         else:
-            update_encode(movie['RowID'], 'Error', 0.0, 0.0, '; '.join(reasons), output + error)
+            update_encode(movie['RowID'], 'Error', 0.0, 0.0, '; '.join(reasons), output + error, encoding_start_time)
             return False
     else:
-        update_encode(movie['RowID'], 'FileNotFound', 0.0, 0.0, '', 'Input file was not found.')
+        update_encode(movie['RowID'], 'FileNotFound', 0.0, 0.0, '', 'Input file was not found.', encoding_start_time)
         return False
 
 
 while not e.wait(10):
     for video in iter(getNext, None):
+        encoding_start_time = datetime.datetime.now()
+
         print video['InputPath']
         video_info = getStreams(video['InputPath'])
 
@@ -537,12 +544,12 @@ while not e.wait(10):
             video['streams'] = video_info['streams']
 
             try:
-                encode(video)
+                encode(video, encoding_start_time)
             except Exception as e:
-                update_encode(video['RowID'], 'Exception', 0.0, 0.0, '', str(e))
+                update_encode(video['RowID'], 'Exception', 0.0, 0.0, '', str(e), encoding_start_time)
                 print str(e)
         else:
-            update_encode(video['RowID'], 'InvalidInputFile', 0.0, 0.0, '', 'Input file is not a valid video.')
+            update_encode(video['RowID'], 'InvalidInputFile', 0.0, 0.0, '', 'Input file is not a valid video.', encoding_start_time)
 
         if e.is_set():
             break

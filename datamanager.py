@@ -19,6 +19,8 @@ class DataManager(Manager):
             'create table encodingqueue (CreatedTimestamp INTEGER, LastUpdatedTimestamp INTEGER, Profile TEXT, Priority INTEGER, Status TEXT, ShouldStop INTEGER, PercentComplete REAL, FrameRate REAL, InputPath TEXT, OutputPath TEXT)',
             'alter table encodingqueue add column EncodingReasons TEXT',
             'alter table encodingqueue add column ErrorText TEXT',
+            'alter table encodingqueue add column EncodingTime INTEGER',
+
         ]
 
         if version < len(schema_changes):
@@ -60,6 +62,7 @@ class DataManager(Manager):
             'UPDATE encodingqueue SET '
             '   EncodingReasons = :EncodingReasons,'
             '   ErrorText = :ErrorText,'
+            '   EncodingTime = :EncodingTime,'
             '   LastUpdatedTimestamp = :LastUpdatedTimestamp,'
             '   Status = :Status,'
             '   PercentComplete = :PercentComplete,'
@@ -79,7 +82,8 @@ class DataManager(Manager):
                 'FrameRate': 0.0,
                 'RowID': encoding_list[0]['RowID'],
                 'EncodingReasons': None,
-                'ErrorText': None
+                'ErrorText': None,
+                'EncodingTime': 0
             })
 
         return encoding_list
@@ -99,7 +103,8 @@ class DataManager(Manager):
             '   InputPath,'
             '   OutputPath,'
             '   EncodingReasons,'
-            '   ErrorText '
+            '   ErrorText,'
+            '   EncodingTime '
             'FROM'
             '   encodingqueue ')
 
@@ -163,7 +168,8 @@ class DataManager(Manager):
                 'InputPath': row[9],
                 'OutputPath': row[10],
                 'EncodingReasons': row[11],
-                'ErrorText': row[12]
+                'ErrorText': row[12],
+                'EncodingTime': row[13]
                 })
 
         return encoding_list
@@ -183,7 +189,8 @@ class DataManager(Manager):
             "   InputPath,"
             "   OutputPath,"
             '   EncodingReasons,'
-            '   ErrorText '
+            '   ErrorText,'
+            '   EncodingTime '
             "FROM"
             "   encodingqueue "
             "WHERE"
@@ -212,7 +219,8 @@ class DataManager(Manager):
                 'InputPath': row[9],
                 'OutputPath': row[10],
                 'EncodingReasons': row[11],
-                'ErrorText': row[12]
+                'ErrorText': row[12],
+                'EncodingTime': row[13]
                 })
 
         return encoding_list

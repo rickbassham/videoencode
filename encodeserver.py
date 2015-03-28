@@ -1,7 +1,5 @@
 #!/usr/bin/python
 
-# Need to add error and reason columns
-
 from datamanager import DataManager
 from requestmanager import RequestManager
 
