@@ -45,7 +45,7 @@ def addVideo(path):
     x, extn = os.path.splitext(name)
     extn = extn.lower()
 
-    if name.endswith('mkv') or name.endswith('avi') or name.endswith('mp4') or name.endswith('m4v'):
+    if name.endswith('mkv') or name.endswith('avi') or name.endswith('mp4') or name.endswith('m4v') or name.endswith('mpg'):
         input_file = os.path.join(root, name)
         output_file = None
 
