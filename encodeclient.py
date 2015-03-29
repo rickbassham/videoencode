@@ -206,7 +206,27 @@ def execute(command, status=None):
                     #print err[indexoffps + 4:indexofnextwhitespace]
                     pass
 
-                status(0.0, framerate)
+                indexoftime = err.find('time=')
+                indexofnextwhitespace = err.find('bitrate=', indexoftime)
+
+                current_timestamp = 0
+
+                try:
+                    time_str = err[indexoftime + 5:indexofnextwhitespace - 1]
+                    time_array = time_str.split(':')
+
+                    if len(time_array) == 3:
+                        current_timestamp += int(time_array[0]) * 3600
+                        current_timestamp += int(time_array[1]) * 60
+                        current_timestamp += float(time_array[2])
+                    else:
+                        #print time_array, err[indexoftime + 5:indexofnextwhitespace]
+                        pass
+                except:
+                    #print indexoftime, indexofnextwhitespace, err[indexoftime + 5:indexofnextwhitespace]
+                    pass
+
+                status(0, framerate, current_timestamp)
 
             elif err.startswith('ISO File Writing:'):
                 err = err.replace('\n', '\r')
@@ -290,6 +310,7 @@ def encode(movie, encoding_start_time):
         temp_file = name + '.mp4'
         subtitle_file = os.path.join(root, name + '.srt')
         output_file = movie['OutputPath']
+        duration = 0
 
         if os.path.isfile(output_file):
             update_encode(movie['RowID'], 'Skipped', 0.0, 0.0, '', 'Output file already exists.', encoding_start_time)
@@ -472,11 +493,22 @@ def encode(movie, encoding_start_time):
         f.write('\n')
         f.close()
 
+        duration = video_stream.get('duration', 0)
+        if duration == 0:
+            duration = audio_stream.get('duration', 0)
+
+        duration = float(duration)
+
         update_encode(movie['RowID'], 'Encoding', 0.0, 0.0, '; '.join(reasons), '', encoding_start_time)
 
-        def status(percent_complete, framerate):
+        def status(percent_complete, framerate, current_timestamp):
             global last_update
             now = datetime.datetime.now()
+
+            if duration > 0 and current_timestamp > 0:
+                percent_complete = current_timestamp / duration * 100
+
+            #print current_timestamp, duration, percent_complete
 
             if (now - last_update).total_seconds() > 10:
                 update_encode(movie['RowID'], 'Encoding', percent_complete, framerate, '; '.join(reasons), '', encoding_start_time)
@@ -545,9 +577,10 @@ while not e.wait(10):
 
             try:
                 encode(video, encoding_start_time)
-            except Exception as e:
-                update_encode(video['RowID'], 'Exception', 0.0, 0.0, '', str(e), encoding_start_time)
-                print str(e)
+            except Exception as ex:
+                update_encode(video['RowID'], 'Exception', 0.0, 0.0, '', str(ex), encoding_start_time)
+                print str(ex)
+                e.set()
         else:
             update_encode(video['RowID'], 'InvalidInputFile', 0.0, 0.0, '', 'Input file is not a valid video.', encoding_start_time)
 
