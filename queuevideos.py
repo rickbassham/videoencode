@@ -37,7 +37,7 @@ include_relative_path = not args.exclude_relative_path
 priority = args.priority
 server = args.server
 
-valid_extensions = ['.mkv', '.avi', '.mp4', '.m4v', '.mpg']
+valid_extensions = ['.mkv', '.avi', '.mp4', '.m4v', '.mpg', '.mov']
 
 def addVideo(path):
     global combos
