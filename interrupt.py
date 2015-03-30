@@ -10,5 +10,6 @@ def GetInterruptEvent():
         e.set()
 
     signal.signal(signal.SIGINT, signal_handler)
+    signal.signal(signal.SIGTERM, signal_handler)
 
     return e
