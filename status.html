@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Encoding Status</title>
+    <style>
+    body {
+        margin: 0;
+        padding: 2em;
+    }
+
+    table {
+        border-collapse: collapse;
+        border: solid 1px black;
+    }
+
+    th, td {
+        border: solid 1px black;
+        padding: 0.5em;
+    }
+
+    dd, dt {
+        display: inline;
+        margin: 0;
+        padding: 0;
+    }
+
+    dd:after {
+        content:"\A";
+        white-space: pre;
+    }
+
+    .template {
+        display: none;
+    }
+
+    .align_left {
+        text-align: left;
+    }
+
+    .align_right {
+        text-align: right;
+    }
+
+    .align_center {
+        text-align: center;
+    }
+
+    .nowrap {
+        white-space: nowrap;
+    }
+
+    .problem {
+        background-color: #FF9494;
+    }
+
+    .error_red {
+        color: #FF9494;
+    }
+
+    .help_green {
+        color: #94FFA6;
+    }
+
+    .authorization_orange {
+        color: #FFCE83;
+    }
+
+    .success_blue {
+        color: #94D6FF;
+    }
+
+    .clear {
+        clear: both;
+    }
+
+    .highlight_yellow {
+        color: #FFFB94;
+    }
+
+    .hideIt {
+        display: none;
+    }
+
+    #custom_status_container {
+        float: left;
+    }
+
+    </style>
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/2.1.3/jquery.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mustache.js/0.8.1/mustache.js"></script>
+
+    <script type="text/javascript">
+
+    var _ENCODING_STATUS_TEMPLATE = null;
+    var _OVERALL_STATUS_TEMPLATE = null;
+
+    var _overall_status_timeout = null;
+    var _active_status_timeout = null;
+
+    var _active_or_custom = 'active';
+
+    var _items_to_render = [];
+    var _filters = {};
+
+    function update_overall_status() {
+        if (_overall_status_timeout) {
+            clearTimeout(_overall_status_timeout);
+        }
+
+        $.get('http://localhost:8080/get_count_per_status', function(data) {
+            $('#overall_status tbody.content').empty();
+
+            for (var status in data.count_per_status) {
+                var item = {
+                    Name: status,
+                    Count: data.count_per_status[status]
+                };
+
+                $('#overall_status tbody.content').append($(Mustache.render(_OVERALL_STATUS_TEMPLATE, item)));
+            }
+
+            _overall_status_timeout = setTimeout(update_overall_status, 10000);
+        });
+    }
+
+    function update_encode_list() {
+        if (_active_status_timeout) {
+            clearTimeout(_active_status_timeout);
+        }
+
+        var query = null;
+
+        if (_active_or_custom == 'active') {
+            url = 'http://localhost:8080/get_active';
+        }
+        else if (_active_or_custom == 'custom') {
+            url = 'http://localhost:8080/get_all_with_status';
+
+            var first = true;
+
+            $('#custom_status :selected').each(function() {
+                if (first) url += '?';
+                else url += '&';
+
+                url += 'status=' + $(this).text();
+            });
+        }
+
+        $.get(url, query, function(data) {
+            $('#encoding_status tbody.content').empty();
+
+            data.list.sort(function(a, b){
+                return a.RowID - b.RowID;
+            });
+
+            var rows = [];
+
+            for (var i = 0; i < data.list.length && i < 10000; i++) {
+                var item = data.list[i];
+
+                item.CreatedTime = new Date(item.CreatedTimestamp * 1000);
+                item.LastUpdatedTime = new Date(item.LastUpdatedTimestamp * 1000);
+
+                var time_diff = (new Date() - item.LastUpdatedTime) / 1000;
+
+                if (time_diff > 300 && (item.Status == 'Encoding' || item.Status == 'Copying')) {
+                    // No updates in 5 minutes.
+                    item.Problem = true;
+                }
+
+                if (item.PercentComplete)
+                    item.PercentComplete = item.PercentComplete.toFixed(2);
+
+                if (item.EncodingTime)
+                    item.EncodingTime = item.EncodingTime.toFixed(2);
+
+                var text = Mustache.render(_ENCODING_STATUS_TEMPLATE, item);4
+                rows.push($(text));
+            }
+
+            $('#encoding_status tbody.content').append(rows);
+
+            _active_status_timeout = setTimeout(update_encode_list, 10000);
+        });
+    }
+
+    $(function(){
+
+        _ENCODING_STATUS_TEMPLATE = $('#encoding_status tbody.template').html();
+        Mustache.parse(_ENCODING_STATUS_TEMPLATE);
+
+        _OVERALL_STATUS_TEMPLATE = $('#overall_status tbody.template').html();
+        Mustache.parse(_OVERALL_STATUS_TEMPLATE);
+
+        update_overall_status();
+        update_encode_list();
+
+        $('input[type=radio][name=status_type]').on('change', function(){
+            switch($(this).val()) {
+                case 'active' :
+                    _active_or_custom = 'active';
+                    $('#custom_status_container').addClass('hideIt');
+                    break;
+                case 'other' :
+                    _active_or_custom = 'custom';
+                    $('#custom_status_container').removeClass('hideIt');
+                    break;
+            }
+
+            update_encode_list();
+        });
+
+        $('#custom_status').on('change', update_encode_list);
+
+        $('.textfilter input').on('keyup', function() {
+            var text = $(this).val();
+            var prop = $(this).attr('data-property');
+
+            var index = $(this).index();
+
+            if (text && prop) {
+                _filters[prop] = text;
+            }
+            else {
+                _filters[prop] = null;
+            }
+
+            // TODO: render filtered.
+        });
+    });
+    </script>
+</head>
+<body>
+
+    <h1>Encoding Status</h1>
+    <h2>Overall Status</h2>
+    <table id="overall_status">
+        <tbody class="content"></tbody>
+        <tbody class="template">
+            <tr>
+                <th class="align_left">{{Name}}</th>
+                <td class="align_right">{{Count}}</td>
+            </tr>
+        </tbody>
+    </table>
+
+    <h2>Active Encodes</h2>
+
+    <div>
+        <input type="radio" id="status_category_active" name="status_type" checked="checked" value="active" />
+        <label for="status_category_active">Active</label>
+    </div>
+    <div>
+        <input type="radio" id="status_category_other" name="status_type" value="other" />
+        <label for="status_category_other">Custom</label>
+    </div>
+
+    <div id="custom_status_container" class="hideIt">
+        <label for="custom_status">Custom Status:</label>
+        <select id="custom_status" multiple="multiple">
+            <option>Starting</option>
+            <option>Skipped</option>
+            <option selected="selected">Pending</option>
+            <option>PendingFull</option>
+            <option>Encoding</option>
+            <option>Muxing</option>
+            <option>Copying</option>
+            <option>Complete</option>
+            <option>Error</option>
+            <option>FileNotFound</option>
+            <option>Exception</option>
+            <option>InvalidInputFile</option>
+        </select>
+    </div>
+
+    <div class="clear"></div>
+
+    <table id="encoding_status">
+        <thead>
+            <tr>
+                <th>Row ID</th>
+                <th>Input Path</th>
+                <th>Status</th>
+                <th>Priority</th>
+                <th>Created Time</th>
+                <th>Last Updated Time</th>
+                <th>Frame Rate</th>
+                <th>Time Encoding</th>
+                <th>Encoding Reasons</th>
+                <th>Percent Complete</th>
+            </tr>
+            <tr>
+                <th></th>
+                <th class="InputPathFilter filter textfilter">
+                    <input type="text" data-property="InputPath" />
+                </th>
+                <th class="StatusFilter filter textfilter">
+                    <input type="text" data-property="Status" />
+                </th>
+                <th class="PriorityFilter filter textfilter">
+                    <input type="text" data-property="Priority" />
+                </th>
+                <th class="CreatedTimeFilter filter">
+                </th>
+                <th class="LastUpdatedTimeFilter filter">
+                </th>
+                <th class="FrameRateFilter filter">
+                </th>
+                <th class="EncodingTimeFilter filter">
+                </th>
+                <th class="EncodingReasonsFilter filter textfilter">
+                    <input type="text" data-property="EncodingReasons" />
+                </th>
+                <th class="PercentCompleteFilter filter">
+                </th>
+            </tr>
+        </thead>
+        <tbody class="content"></tbody>
+        <tbody class="template">
+            <tr class="{{#Problem}}problem{{/Problem}}">
+                <td class="align_right">{{RowID}}</td>
+                <td class="nowrap">{{InputPath}}</td>
+                <td>{{Status}}</td>
+                <td class="align_right">{{Priority}}</td>
+                <td>{{CreatedTime}}</td>
+                <td>{{LastUpdatedTime}}</td>
+                <td class="align_right">{{FrameRate}}</td>
+                <td class="align_right">{{EncodingTime}}</td>
+                <td>{{EncodingReasons}}</td>
+                <td class="align_right">{{PercentComplete}}</td>
+            </tr>
+        </tbody>
+    </table>
+
+</body>
+</html>

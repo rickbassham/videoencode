@@ -7,24 +7,33 @@ def Application():
     import interrupt
     e = interrupt.GetInterruptEvent()
 
-    mgr1 = DataManager()
-    mgr2 = RequestManager()
+    while not e.wait(0.5):
+        managers = []
 
-    mgr1.connect_to(mgr2)
-    mgr2.connect_to(mgr1)
+        mgr1 = DataManager()
+        mgr2 = RequestManager()
 
-    mgr1.start()
-    mgr2.start()
+        mgr1.connect_to(mgr2)
+        mgr2.connect_to(mgr1)
 
-    print 'In main run loops...'
+        managers.append(mgr1)
+        managers.append(mgr2)
 
-    while not e.wait(1):
-        pass
+        for mgr in managers:
+            mgr.start()
 
-    print 'Stopping managers...'
+        print 'In main run loops...'
 
-    mgr1.stop()
-    mgr2.stop()
+        while not e.wait(0.5):
+            for mgr in managers:
+                if not mgr.is_alive():
+                    print mgr.name, 'crashed. Restarting...'
+            pass
+
+        print 'Stopping managers...'
+
+        for mgr in managers:
+            mgr.stop()
 
 
 if __name__ == '__main__':

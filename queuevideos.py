@@ -37,6 +37,8 @@ include_relative_path = not args.exclude_relative_path
 priority = args.priority
 server = args.server
 
+valid_extensions = ['.mkv', '.avi', '.mp4', '.m4v', '.mpg']
+
 def addVideo(path):
     global combos
     global priority
@@ -45,7 +47,7 @@ def addVideo(path):
     x, extn = os.path.splitext(name)
     extn = extn.lower()
 
-    if name.endswith('mkv') or name.endswith('avi') or name.endswith('mp4') or name.endswith('m4v') or name.endswith('mpg'):
+    if extn in valid_extensions:
         input_file = os.path.join(root, name)
         output_file = None
 

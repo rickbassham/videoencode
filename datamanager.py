@@ -58,6 +58,8 @@ class DataManager(Manager):
     def update_encode(self, obj):
         obj['LastUpdatedTimestamp'] = int(time.time())
 
+        print 'update_object', obj
+
         self.cursor.execute((
             'UPDATE encodingqueue SET '
             '   EncodingReasons = :EncodingReasons,'
@@ -194,7 +196,7 @@ class DataManager(Manager):
             "FROM"
             "   encodingqueue "
             "WHERE"
-            "   Status not in ('Complete', 'Pending', 'PendingFull', 'Skipped', 'Error', 'FileNotFound', 'InvalidInputFile') "
+            "   Status not in ('Complete', 'Pending', 'PendingFull', 'Skipped', 'Error', 'Exception', 'FileNotFound', 'InvalidInputFile') "
         )
 
         print query

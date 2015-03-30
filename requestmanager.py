@@ -64,6 +64,7 @@ class RequestManager(Manager):
 
     @cherrypy.expose
     @cherrypy.tools.json_out()
+    @cherrypy.tools.response_headers(headers=[('Access-Control-Allow-Origin', '*')])
     def index(self):
         request_id = self.register_request()
 
@@ -82,6 +83,7 @@ class RequestManager(Manager):
 
     @cherrypy.expose
     @cherrypy.tools.json_out()
+    @cherrypy.tools.response_headers(headers=[('Access-Control-Allow-Origin', '*')])
     def encode_list(self, profile=None):
         request_id = self.register_request()
 
@@ -132,6 +134,7 @@ class RequestManager(Manager):
 
     @cherrypy.expose
     @cherrypy.tools.json_out()
+    @cherrypy.tools.response_headers(headers=[('Access-Control-Allow-Origin', '*')])
     def version(self):
         request_id = self.register_request()
 
@@ -178,6 +181,7 @@ class RequestManager(Manager):
 
     @cherrypy.expose
     @cherrypy.tools.json_out()
+    @cherrypy.tools.response_headers(headers=[('Access-Control-Allow-Origin', '*')])
     def reset_to_pending(self, status=None):
         request_id = self.register_request()
 
@@ -198,6 +202,7 @@ class RequestManager(Manager):
 
     @cherrypy.expose
     @cherrypy.tools.json_out()
+    @cherrypy.tools.response_headers(headers=[('Access-Control-Allow-Origin', '*')])
     def get_all_with_status(self, status=None):
         request_id = self.register_request()
 
@@ -222,6 +227,7 @@ class RequestManager(Manager):
 
     @cherrypy.expose
     @cherrypy.tools.json_out()
+    @cherrypy.tools.response_headers(headers=[('Access-Control-Allow-Origin', '*')])
     def get_active(self):
         request_id = self.register_request()
 
@@ -240,6 +246,7 @@ class RequestManager(Manager):
 
     @cherrypy.expose
     @cherrypy.tools.json_out()
+    @cherrypy.tools.response_headers(headers=[('Access-Control-Allow-Origin', '*')])
     def get_count_per_status(self):
         request_id = self.register_request()
 
