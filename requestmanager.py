@@ -50,7 +50,7 @@ class RequestManager(Manager):
 
         start = datetime.datetime.now()
 
-        while not e.wait(0.1):
+        while not e.wait(0.1) and not self._event.wait(0.1):
             if (datetime.datetime.now() - start).total_seconds() > timeout:
                 e.set()
 
