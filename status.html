@@ -107,7 +107,7 @@
             clearTimeout(_overall_status_timeout);
         }
 
-        $.get('http://localhost:8080/get_count_per_status', function(data) {
+        $.get('/get_count_per_status', function(data) {
             $('#overall_status tbody.content').empty();
 
             for (var status in data.count_per_status) {
@@ -131,10 +131,10 @@
         var query = null;
 
         if (_active_or_custom == 'active') {
-            url = 'http://localhost:8080/get_active';
+            url = '/get_active';
         }
         else if (_active_or_custom == 'custom') {
-            url = 'http://localhost:8080/get_all_with_status';
+            url = '/get_all_with_status';
 
             var first = true;
 
