@@ -425,7 +425,7 @@ def encode(movie, encoding_start_time, force_encode=False):
                 "-crf", "22.0",
                 "-profile:v", "high",
                 "-filter:v:{0}".format(video_stream_index), "scale=w='min(1920\, iw):trunc(ow/a/2)*2'",
-                "-x264-params", "level=41:cabac=1:vbv-maxrate=10000:vbv-bufsize=20000",
+                "-x264-params", "level=41:cabac=1:vbv-maxrate=10000:vbv-bufsize=5000",
             ])
 
             if video_stream['codec_name'] != 'h264':
