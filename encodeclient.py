@@ -233,12 +233,20 @@ def execute(command, status=None):
 
         return False
 
+    last_output = datetime.datetime.now()
 
     while p.poll() is None:
-        readstdout()
-        readstderr()
+        if readstdout():
+            last_output = datetime.datetime.now()
 
-        if e.is_set():
+        if readstderr():
+            last_output = datetime.datetime.now()
+
+        if (datetime.datetime.now() - last_output).total_seconds() > 300:
+            print 'No output in last 5 minutes, restarting encode.'
+            p.kill()
+            return False, 'Timeout', None
+        elif e.is_set():
             p.kill()
 
 
@@ -553,8 +561,12 @@ def encode(movie, encoding_start_time, force_encode=False):
                 update_encode(movie['RowID'], 'Error', 0.0, 0.0, '; '.join(reasons), output + error, encoding_start_time)
                 return False
         else:
-            update_encode(movie['RowID'], 'Error', 0.0, 0.0, '; '.join(reasons), output + error, encoding_start_time)
-            return False
+            if output == 'Timeout':
+                update_encode(video['RowID'], 'Pending', 0.0, 0.0, '', '', encoding_start_time)
+                pass
+            else:
+                update_encode(movie['RowID'], 'Error', 0.0, 0.0, '; '.join(reasons), output + error, encoding_start_time)
+                return False
     else:
         update_encode(movie['RowID'], 'FileNotFound', 0.0, 0.0, '', 'Input file was not found.', encoding_start_time)
         return False
@@ -574,7 +586,10 @@ def main():
     server = args.server
     exclude_video_change = args.exclude_video_change
 
-    while not e.wait(10):
+    wait_time = 0.1
+
+    while not e.wait(wait_time):
+        wait_time = 10
         for video in iter(getNext, None):
             encoding_start_time = datetime.datetime.now()
 
