@@ -247,10 +247,10 @@ class RequestManager(Manager):
     @cherrypy.expose
     @cherrypy.tools.json_out()
     @cherrypy.tools.response_headers(headers=[('Access-Control-Allow-Origin', '*')])
-    def get_count_per_status(self):
+    def get_count_per_status(self, start_time=None):
         request_id = self.register_request()
 
-        self.send(Packet('get_count_per_status', 'DataManager', self.name, payload={ 'request_id': request_id }))
+        self.send(Packet('get_count_per_status', 'DataManager', self.name, payload={ 'request_id': request_id, 'start_time': start_time }))
 
         response_packet = self.wait_for_response(request_id)
 

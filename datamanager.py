@@ -259,8 +259,13 @@ class DataManager(Manager):
 
         return count
 
-    def get_count_per_status(self):
-        query = "SELECT COUNT(1) as Count, Status From encodingqueue GROUP BY Status ORDER BY Count"
+    def get_count_per_status(self, start_time):
+        query = "SELECT COUNT(1) as Count, Status From encodingqueue"
+
+        if start_time is not None:
+            query += " WHERE LastUpdatedTimestamp > %d" % (int(start_time))
+
+        query += " GROUP BY Status ORDER BY Count"
 
         print query
 
@@ -350,6 +355,6 @@ class DataManager(Manager):
         self.send(packet)
 
     def process_request_for_count_per_status(self, packet):
-        packet.payload['count_per_status'] = self.get_count_per_status()
+        packet.payload['count_per_status'] = self.get_count_per_status(packet.payload['start_time'])
         packet.return_to_sender()
         self.send(packet)
