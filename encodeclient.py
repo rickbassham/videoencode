@@ -26,16 +26,8 @@ import interrupt
 
 e = interrupt.GetInterruptEvent()
 
-parser = argparse.ArgumentParser(description='Encodes videos queued at the specified server')
-
-parser.add_argument('server', help="ip address or hostname of the encode server")
-parser.add_argument('--exclude-video-change', help="", action="store_true")
-
-args = parser.parse_args()
-
-server = args.server
-exclude_video_change = args.exclude_video_change
-
+server = None
+exclude_video_change = False
 
 current_row_id = None
 last_update = datetime.datetime.now()
@@ -78,6 +70,9 @@ def getNext():
         return None
 
 def update_encode(rowid, status, percent_complete, framerate, encoding_reasons, error_text, encoding_start_time):
+    if rowid is None:
+        return
+
     if error_text is None:
         error_text = ''
 
@@ -277,7 +272,7 @@ def mkdir_p(path):
         else: raise
 
 
-def encode(movie, encoding_start_time):
+def encode(movie, encoding_start_time, force_encode=False):
     global e
     global last_update
     # We want a video stream no wider than 1920 with Main 4.0 profile or lower
@@ -410,7 +405,7 @@ def encode(movie, encoding_start_time):
 
         video_needs_encoding = False
 
-        if subtitle_stream is None and video_stream['codec_name'] == 'h264' and video_stream['width'] <= 1920 and video_stream['level'] <= 41 and video_stream['profile'] in valid_profiles:
+        if not force_encode and subtitle_stream is None and video_stream['codec_name'] == 'h264' and video_stream['width'] <= 1920 and video_stream['level'] <= 41 and video_stream['profile'] in valid_profiles:
             command.extend([
                 "-codec:v:{0}".format(video_stream_index), "copy",
             ])
@@ -437,7 +432,7 @@ def encode(movie, encoding_start_time):
             if video_stream.get('profile', None) not in valid_profiles:
                 reasons.append('video profile {0}'.format(video_stream.get('profile', None)))
 
-        if audio_stream['channels'] == 2 and audio_stream['codec_name'] == 'aac':
+        if not force_encode and audio_stream['channels'] == 2 and audio_stream['codec_name'] == 'aac':
             command.extend([
                 "-map", "0:a:{0}".format(audio_stream_index),
                 "-codec:a:{0}".format(audio_stream_index), "copy",
@@ -565,26 +560,44 @@ def encode(movie, encoding_start_time):
         return False
 
 
-while not e.wait(10):
-    for video in iter(getNext, None):
-        encoding_start_time = datetime.datetime.now()
+def main():
+    global server
+    global exclude_video_change
 
-        print video['InputPath']
-        video_info = getStreams(video['InputPath'])
+    parser = argparse.ArgumentParser(description='Encodes videos queued at the specified server')
 
-        if video_info is not None:
-            video['streams'] = video_info['streams']
+    parser.add_argument('server', help="ip address or hostname of the encode server")
+    parser.add_argument('--exclude-video-change', help="", action="store_true")
 
-            try:
-                encode(video, encoding_start_time)
-            except Exception as ex:
-                update_encode(video['RowID'], 'Exception', 0.0, 0.0, '', str(ex), encoding_start_time)
-                print str(ex)
-                e.set()
-        else:
-            update_encode(video['RowID'], 'InvalidInputFile', 0.0, 0.0, '', 'Input file is not a valid video.', encoding_start_time)
+    args = parser.parse_args()
 
-        if e.is_set():
-            break
+    server = args.server
+    exclude_video_change = args.exclude_video_change
 
-        #print json.dumps(video, indent=4, sort_keys=True)
+    while not e.wait(10):
+        for video in iter(getNext, None):
+            encoding_start_time = datetime.datetime.now()
+
+            print video['InputPath']
+            video_info = getStreams(video['InputPath'])
+
+            if video_info is not None:
+                video['streams'] = video_info['streams']
+
+                try:
+                    encode(video, encoding_start_time)
+                except Exception as ex:
+                    update_encode(video['RowID'], 'Exception', 0.0, 0.0, '', str(ex), encoding_start_time)
+                    print str(ex)
+                    e.set()
+            else:
+                update_encode(video['RowID'], 'InvalidInputFile', 0.0, 0.0, '', 'Input file is not a valid video.', encoding_start_time)
+
+            if e.is_set():
+                update_encode(video['RowID'], 'Pending', 0.0, 0.0, '', '', encoding_start_time)
+                break
+
+            #print json.dumps(video, indent=4, sort_keys=True)
+
+if __name__ == "__main__":
+    main()
