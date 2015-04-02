@@ -536,15 +536,25 @@ def encode(movie, encoding_start_time, force_encode=False):
                 print 'Done'
                 return True
             else:
+                try:
+                    os.remove(temp_file)
+                except:
+                    pass
+
                 update_encode(movie['RowID'], 'Error', 0.0, 0.0, '; '.join(reasons), output + error, encoding_start_time)
                 return False
         else:
-            if output == 'Timeout':
-                update_encode(video['RowID'], 'Pending', 0.0, 0.0, '', '', encoding_start_time)
+            try:
+                os.remove(temp_file)
+            except:
                 pass
-            else:
-                update_encode(movie['RowID'], 'Error', 0.0, 0.0, '; '.join(reasons), output + error, encoding_start_time)
-                return False
+
+            #if output == 'Timeout':
+            #    update_encode(video['RowID'], 'Pending', 0.0, 0.0, '', '', encoding_start_time)
+            #    pass
+            #else:
+            update_encode(movie['RowID'], 'Error', 0.0, 0.0, '; '.join(reasons), output + error, encoding_start_time)
+            return False
     else:
         update_encode(movie['RowID'], 'FileNotFound', 0.0, 0.0, '', 'Input file was not found.', encoding_start_time)
         return False
