@@ -102,12 +102,26 @@
     var _items_to_render = [];
     var _filters = {};
 
+    var _server = 'http://cubox-i'
+
     function update_overall_status() {
         if (_overall_status_timeout) {
             clearTimeout(_overall_status_timeout);
         }
 
-        $.get('/get_count_per_status', function(data) {
+        var type = $('input[type=radio][name=status_count_filter]:checked').val();
+
+        var url = _server + '/get_count_per_status';
+
+        switch (type) {
+            case 'all':
+                break;
+            case 'last24hours':
+                url += '?start_time=' + Math.round(((new Date).getTime() / 1000) - 86400);
+                break;
+        }
+
+        $.get(url, function(data) {
             $('#overall_status tbody.content').empty();
 
             for (var status in data.count_per_status) {
@@ -131,10 +145,10 @@
         var query = null;
 
         if (_active_or_custom == 'active') {
-            url = '/get_active';
+            url = _server + '/get_active';
         }
         else if (_active_or_custom == 'custom') {
-            url = '/get_all_with_status';
+            url = _server + '/get_all_with_status';
 
             var first = true;
 
@@ -211,6 +225,7 @@
         });
 
         $('#custom_status').on('change', update_encode_list);
+        $('input[type=radio][name=status_count_filter]').on('change', update_overall_status);
 
         $('.textfilter input').on('keyup', function() {
             var text = $(this).val();
@@ -234,6 +249,13 @@
 
     <h1>Encoding Status</h1>
     <h2>Overall Status</h2>
+    <div>
+        <input type="radio" id="status_count_all" name="status_count_filter" checked="checked" value="all" />
+        <label for="status_count_all">All</label>
+        &nbsp;&nbsp;
+        <input type="radio" id="status_count_last24hours" name="status_count_filter" value="last24hours" />
+        <label for="status_count_last24hours">Last 24 hours</label>
+    </div>
     <table id="overall_status">
         <tbody class="content"></tbody>
         <tbody class="template">
