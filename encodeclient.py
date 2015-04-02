@@ -363,17 +363,7 @@ def encode(movie, encoding_start_time, force_encode=False):
 
         mkdir_p(os.path.dirname(output_file))
 
-        use_srt_file = subtitle_stream is None and os.path.isfile(subtitle_file)
-        srt_file_encoding = None
-
-        if use_srt_file:
-            raw = open(subtitle_file).read()
-            srt_file_encoding = chardet.detect(raw)['encoding']
-
-            if srt_file_encoding.startswith('UTF-8'):
-                srt_file_encoding = 'UTF-8'
-            elif srt_file_encoding.startswith('UTF-16'):
-                srt_file_encoding = 'UTF-16'
+        has_srt_file = os.path.isfile(subtitle_file)
 
         copy_video = False
         copy_audio = False
@@ -387,17 +377,6 @@ def encode(movie, encoding_start_time, force_encode=False):
             "-y",
             "-i", input_file,
         ]
-
-        if use_srt_file:
-            if srt_file_encoding is not None:
-                command.extend([
-                    "-sub_charenc", srt_file_encoding,
-                ])
-
-            command.extend([
-                "-i", subtitle_file,
-            ])
-            reasons.append('Add SRT file')
 
         command.extend([
             "-map", "0:v:{0}".format(video_stream_index),
@@ -469,13 +448,6 @@ def encode(movie, encoding_start_time, force_encode=False):
             ])
 
             reasons.append('forced subtitles')
-
-        elif use_srt_file:
-            command.extend([
-                "-map", "1:s:{0}".format(subtitle_stream_index),
-                "-c:s:{0}".format(subtitle_stream_index), "mov_text",
-                '-metadata:s:s:{0}'.format(subtitle_stream_index), "language=eng",
-            ])
 
         command.extend([
             temp_file,
@@ -550,6 +522,12 @@ def encode(movie, encoding_start_time, force_encode=False):
                     os.remove(temp_file)
                 except:
                     pass
+
+                if has_srt_file:
+                    try:
+                        shutil.copy(subtitle_file, output_file.replace('.mp4', '.srt'))
+                    except:
+                        pass
 
                 if not video_needs_encoding and os.path.isfile(output_file):
                     os.remove(input_file)
