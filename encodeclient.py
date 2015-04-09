@@ -250,7 +250,7 @@ def execute(command, status=None):
         if (datetime.datetime.now() - last_output).total_seconds() > 300:
             logger.error('No output in last 5 minutes, restarting encode.')
             p.kill()
-            return False, 'Timeout', None
+            return False, 'Timeout', ''
         elif e.is_set():
             p.kill()
 
