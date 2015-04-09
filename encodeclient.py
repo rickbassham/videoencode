@@ -21,8 +21,13 @@ import sys
 import time
 import urllib
 import urllib2
+import logging
 
 import interrupt
+
+FORMAT = '%(asctime)-15s %(levelname)-8s %(module)s %(lineno)d %(message)s'
+logging.basicConfig(format=FORMAT, level=logging.INFO)
+logger = logging.getLogger('encodeclient')
 
 e = interrupt.GetInterruptEvent()
 
@@ -98,7 +103,7 @@ def update_encode(rowid, status, percent_complete, framerate, encoding_reasons, 
         req.add_header('Content-Type', 'application/json')
         response = urllib2.urlopen(req, json.dumps(obj))
     except:
-        print 'Unable to update encode.'
+        logger.warning('Unable to update encode.')
         pass
 
 from threading import Thread
@@ -152,7 +157,7 @@ def execute(command, status=None):
 
     cmd = ' '.join(map(quote_if_spaces, command))
 
-    print cmd
+    logger.debug(cmd)
 
     f = open('commands.log', 'a')
     f.write(datetime.datetime.now().isoformat())
@@ -243,7 +248,7 @@ def execute(command, status=None):
             last_output = datetime.datetime.now()
 
         if (datetime.datetime.now() - last_output).total_seconds() > 300:
-            print 'No output in last 5 minutes, restarting encode.'
+            logger.error('No output in last 5 minutes, restarting encode.')
             p.kill()
             return False, 'Timeout', None
         elif e.is_set():
@@ -293,6 +298,8 @@ def encode(movie, encoding_start_time, force_encode=False):
     audio_stream = None
     subtitle_stream = None
 
+    audio_lang = None
+
     video_stream_index = -1
     audio_stream_index = -1
     subtitle_stream_index = -1
@@ -329,12 +336,26 @@ def encode(movie, encoding_start_time, force_encode=False):
                     video_stream_index = video_i
                 video_i += 1
             elif stream['codec_type'] == 'audio':
+                tags = stream.get('tags', None)
+
+                lang = None
+                if tags is not None:
+                    lang = tags.get('language', None)
+
+                print audio_lang, lang
+
                 if audio_stream is None:
                     audio_stream = stream
                     audio_stream_index = audio_i
-                elif stream['channels'] > audio_stream['channels'] or stream.get('bit_rate', 0) > audio_stream.get('bit_rate', 0):
+                    audio_lang = lang
+                elif (audio_lang != 'eng' and lang == 'eng'):
                     audio_stream = stream
                     audio_stream_index = audio_i
+                    audio_lang = lang
+                elif audio_lang == lang and (stream['channels'] > audio_stream['channels'] or stream.get('bit_rate', 0) > audio_stream.get('bit_rate', 0)):
+                    audio_stream = stream
+                    audio_stream_index = audio_i
+                    audio_lang = lang
                 audio_i += 1
 
         for stream in movie['streams']:
@@ -392,7 +413,7 @@ def encode(movie, encoding_start_time, force_encode=False):
 
         video_needs_encoding = False
 
-        if not force_encode and subtitle_stream is None and video_stream['codec_name'] == 'h264' and video_stream['width'] <= 1920 and video_stream['level'] <= 41 and video_stream['profile'] in valid_profiles:
+        if not force_encode and video_stream['codec_name'] == 'h264' and video_stream['width'] <= 1920 and video_stream['level'] <= 41 and video_stream['profile'] in valid_profiles:
             command.extend([
                 "-codec:v:{0}".format(video_stream_index), "copy",
             ])
@@ -441,13 +462,6 @@ def encode(movie, encoding_start_time, force_encode=False):
 
             if audio_stream['codec_name'] != 'aac':
                 reasons.append('audio codec {0}'.format(audio_stream['codec_name']))
-
-        if subtitle_stream is not None:
-            command.extend([
-                "-vf", "subtitles=filename='{0}':stream_index={1}".format(input_file, subtitle_stream_index)
-            ])
-
-            reasons.append('forced subtitles')
 
         command.extend([
             temp_file,
@@ -504,7 +518,7 @@ def encode(movie, encoding_start_time, force_encode=False):
             success, output, error = execute(command)
 
             if success:
-                print 'Copying to final destination...', output_file
+                logger.info('Copying to final destination: %s', output_file)
 
                 update_encode(movie['RowID'], 'Copying', 0.0, 0.0, '; '.join(reasons), '', encoding_start_time)
 
@@ -533,7 +547,7 @@ def encode(movie, encoding_start_time, force_encode=False):
                     os.remove(input_file)
 
                 update_encode(movie['RowID'], 'Complete', 0.0, 0.0, '; '.join(reasons), '', encoding_start_time)
-                print 'Done'
+                logger.info('Done')
                 return True
             else:
                 try:
@@ -581,7 +595,7 @@ def main():
         for video in iter(getNext, None):
             encoding_start_time = datetime.datetime.now()
 
-            print video['InputPath']
+            logger.info('Trying to process: %s', video['InputPath'])
             video_info = getStreams(video['InputPath'])
 
             if video_info is not None:
@@ -591,7 +605,7 @@ def main():
                     encode(video, encoding_start_time)
                 except Exception as ex:
                     update_encode(video['RowID'], 'Exception', 0.0, 0.0, '', str(ex), encoding_start_time)
-                    print str(ex)
+                    logger.critical(str(ex))
                     e.set()
             else:
                 update_encode(video['RowID'], 'InvalidInputFile', 0.0, 0.0, '', 'Input file is not a valid video.', encoding_start_time)
