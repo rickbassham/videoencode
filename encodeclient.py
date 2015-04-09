@@ -342,8 +342,6 @@ def encode(movie, encoding_start_time, force_encode=False):
                 if tags is not None:
                     lang = tags.get('language', None)
 
-                print audio_lang, lang
-
                 if audio_stream is None:
                     audio_stream = stream
                     audio_stream_index = audio_i
